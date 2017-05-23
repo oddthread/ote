@@ -441,6 +441,54 @@ vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
     
     return value_vec2(cursor_x,cursor_y);
 }
+char *get_text(vec2 begin, vec2 end, editor *focused_editor)
+{
+    if((end.y<begin.y) || (begin.y==end.y && begin.x > end.x))
+    {
+        vec2 temp=end;
+        end=begin;
+        begin=temp;
+    }
+    /*@old bug reallocd array and was using old pointer, because i was holding two pointers to it derp*/
+
+    char *retval=NULL;
+    char *temp=NULL;
+    for(u32 y=begin.y; y<=end.y; y++)
+    {
+        char *curline=focused_editor->lines[y];
+        u32 strlen_curline=strlen(curline);
+
+        if(begin.y==end.y)
+        {
+            retval=malloc_str_slice(curline,begin.x,end.x);
+            break;
+        }
+        else if(y==begin.y)
+        {
+            retval=malloc_str_slice(curline,begin.x,strlen_curline-1);
+        }
+        else if(y==end.y)
+        {
+            temp=retval;
+            retval=str_cat(retval,"\n");
+            free(temp);
+            temp=retval;
+            retval=str_cat(retval,malloc_str_slice(curline,0,end.x));            
+            free(temp);
+        }
+        else
+        {
+            temp=retval;
+            retval=str_cat(retval,"\n");
+            free(temp);
+            temp=retval;
+            retval=str_cat(retval,curline);
+            free(temp);
+        }
+        
+    }
+    return retval;
+}
 void delete_text(vec2 begin, vec2 end, editor *focused_editor)
 {
     if((end.y<begin.y) || (begin.y==end.y && begin.x > end.x))
@@ -557,7 +605,7 @@ int main()
     {
         u32 i;
 
-        while(poll(&e))//@todo change to while
+        while(poll_input(&e))//@todo change to while
         {
             s32 caps_lock_toggled=get_mod_state() & KEY_MOD_CAPS; 
 
@@ -735,12 +783,115 @@ int main()
                     /*ACTUAL KEY HANDLING STARTS HERE*/
                     if(keystate.ctrl_pressed)
                     {
+                        /*@todo make these rebindable*/
+                        
+                        /*open*/
+                        if(e.type==KEY_O)
+                        {
+
+                        }
+                        /*save*/
+                        if(e.type==KEY_S)
+                        {
+
+                        }
+                        /*find, one for just window if pressing alt for all open windows*/
+                        if(e.type==KEY_F)
+                        {
+
+                        }
+                        /*replace, one for just window if pressing alt for all open windows*/
+                        if(e.type==KEY_H)
+                        {
+
+                        }
+                        /*move to token*/
+                        if(e.type==KEY_LEFT)
+                        {
+
+                        }
+                        /*move to token*/
+                        if(e.type==KEY_RIGHT)
+                        {
+
+                        }
+                        /*select all*/
+                        if(e.type==KEY_A)
+                        {
+                            vec2 begin=value_vec2(0,0);
+                            vec2 end=value_vec2(strlen(focused_editor->lines[focused_editor->lines_size-1]),focused_editor->lines_size-1);
+
+                            focused_editor->current_text_selection=ctor_text_selection(begin, end, focused_editor);
+                            focused_editor->text_selection_origin=begin;
+                            focused_editor->text_selection_end=end;
+                        }
                         /*open new window*/
                         if(e.type==KEY_N)
                         {
                             editors_size+=1;
                             editors=(editor**)realloc(editors, sizeof(editor*)*editors_size);
                             editors[editors_size-1]=ctor_editor();
+                        }
+                        if(e.type==KEY_C)
+                        {
+                            if(focused_editor->current_text_selection)
+                            {
+                                set_clipboard_text(get_text(focused_editor->text_selection_origin,focused_editor->text_selection_end,focused_editor));
+                            }
+                        }
+                        if(e.type==KEY_V)
+                        {
+                            char *sdl_clip=get_clipboard_text();
+                            char *clip=strcpy(malloc(strlen(sdl_clip)+1),sdl_clip);
+                            sdl_free(sdl_clip);
+                            clip=str_remove_characters(clip,'\r');
+                            if(clip)
+                            {
+                                if(focused_editor->current_text_selection)
+                                {
+                                    delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor);
+                                    dtor_text_selection(focused_editor->current_text_selection);
+                                    focused_editor->current_text_selection=NULL;
+                                    focused_editor->start_selection=false;
+                                }
+
+                                u32 clip_index=0;
+                                u32 strlen_clip=strlen(clip);
+                                
+                                while(clip_index<strlen_clip)
+                                {     
+                                    if(clip[clip_index]=='\n')
+                                    {                                 
+                                        focused_editor->lines_size+=1;
+                                        focused_editor->lines=realloc(focused_editor->lines,focused_editor->lines_size*sizeof(char*));
+                                        for(i=focused_editor->lines_size-1; i>focused_editor->cursor_y+1; i--)
+                                        {
+                                            focused_editor->lines[i]=focused_editor->lines[i-1];
+                                        }
+                                        
+                                        u32 next_line_splice_start=focused_editor->cursor_x;
+                                        u32 next_line_splice_end=strlen(focused_editor->lines[focused_editor->cursor_y])-1;
+                                        focused_editor->lines[focused_editor->cursor_y+1]=malloc_str_slice(focused_editor->lines[focused_editor->cursor_y],next_line_splice_start,next_line_splice_end);
+                                        
+                                        char *temp=focused_editor->lines[focused_editor->cursor_y];
+                                        focused_editor->lines[focused_editor->cursor_y]=malloc_str_slice(temp,0,focused_editor->cursor_x-1);
+                                        free(temp);
+
+                                        editor_set_cursor_position(focused_editor,0,focused_editor->cursor_y+1);
+                                    }
+                                    else
+                                    {
+                                        char *curline=focused_editor->lines[focused_editor->cursor_y];
+                                        char *modstring=str_insert(curline,clip[clip_index],focused_editor->cursor_x);
+                                        focused_editor->lines[focused_editor->cursor_y]=modstring;
+                                        editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
+                                    }
+                                    clip_index++;
+                                }
+                                free(clip);
+                                text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
+                            }
+
                         }
                     }
                     else
@@ -1155,7 +1306,7 @@ int main()
 
         if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)
         {
-            sleep(1000.0f/60.0f-(milli_current_time()-frame_time_stamp));
+            sleep_milli(1000.0f/60.0f-(milli_current_time()-frame_time_stamp));
         }
     }
 }
