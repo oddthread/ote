@@ -11,6 +11,8 @@ cant select just a single character
 
 sometimes cursor is unresponsive after opening app
 
+sometimes enter will skip the first keypress
+
 text selection stops working when mouse goes outside of window, doesnt get left key up event? maybe just do mouseup event when cursor leaves window
 
 if you select a line from the 0th character and go upwards with the selection it highlights that space when it shouldnt?
@@ -18,45 +20,40 @@ if you select a line from the 0th character and go upwards with the selection it
 
 /*@todo actually check off this shit
 
+auto indent and braces completion, insert second newline and indent after enter on brace ({[]})
 
-ctrl arrows, ctrl shift arrows for selection (shared code with mouse selection), other ctrl shortcuts
-*done* ctrl key disabled regular key entry because it is used for ctrl commands e.g. ctrl c (USE CLIPBOARD)
-undo,redo
-search and replace should (optionally?) be able to work on all windows
+shift makes you highlight whenever you move the cursor in any way (shift down should assign to focused_editor->current_text_selection)
 
-auto indent and braces completion, insert second newline and indent after enter on brace ({[]})   
-ui and files (js port)
-if the ui is changed need to check the mouse position and change the system_cursor (hittest)
+other ctrl shortcut - undo,redo - search and replace should (optionally?) be able to work on all windows
 
-move all editor-stateful variables from main to editor
+ui and files (js port?) - if the ui is changed need to check the mouse position and change the system_cursor (hittest)
 
-*done* move camera on cursor pose
-make camera move when selection and going beyond end of screen (so it functions like vscode)
-
-use my own fullscreen instead of sdl so it doesnt minimize when I click away
-
-mouse scroll
-
-*done* mouse place cursor and selection
-
-*done* home, delete, end
-
-
-? change to use sdl_textinputevent? it might be wonky, its a pretty big abstraction`
-
-*done* arbitrary number of windows, handle opening and closing and removing renderers to those windows
-
-update root entity on window resize for each window instead of every frame
-
+ctrl arrows, ctrl shift arrows for selection (shared code with mouse selection and parsing, it goes to tokens)
 syntax highlighting & auto completion
 
-*done* end process once all windows are closed
+optimize paste and line insertion/removal (im sure rendering is the bottleneck)
+
+update root entity on window resize for each window instead of every frame
 
 inside draw function check if in bounds before drawing
 
 convert empty parenthesis to (void)
 
-turn on Wall
+turn on Wall, get compiling on linux, general testing
+
+? use my own fullscreen instead of sdl so it doesnt minimize when I click away
+
+? change to use sdl_textinputevent? it might be wonky, its a pretty big abstraction`
+
+*done*fix camera so if you are below the window you can still move the cursor up, same with left/right
+*done*mouse scroll
+*done* ctrl key disabled regular key entry because it is used for ctrl commands e.g. ctrl c (USE CLIPBOARD)
+*done* move camera on cursor pose
+*done*make camera move when selection and going beyond end of screen (so it functions like vscode)
+*done* mouse place cursor and selection
+*done* home, delete, end
+*done* arbitrary number of windows, handle opening and closing and removing renderers to those windows
+*done* end process once all windows are closed
 
 @perf
 
@@ -66,6 +63,8 @@ profile to find bottlenecks
 optimize osal functions
 
 @notes
+
+move all editor-stateful variables from main to editor
 
 designed to only have one font rendering in an editor
 
@@ -116,7 +115,7 @@ possibly custom operators
 
 char const *global_font_url="res/UbuntuMono-R.ttf";
 u32 global_font_size=24;
-u32 global_text_left_margin=0;
+s32 global_text_margin=75;
 
 typedef struct text_selection
 {
@@ -136,7 +135,8 @@ typedef struct keystate_interpreter_info
 typedef struct editor
 {
     bool start_selection;
-    
+    bool wheel_override;
+
     text_selection *current_text_selection;
     vec2 text_selection_origin;
     vec2 text_selection_end;
@@ -166,7 +166,7 @@ void editor_set_cursor_position(editor *e, u32 x, u32 y)
 
     u32 width;
     u32 height;
-    
+    e->wheel_override=false;
     char *spliced_str=NULL;
     if(x==0)
     {//str_slice returns null or something if the end and begin are the same index, and ttf_size_text has undefined behavior if string is null
@@ -179,7 +179,7 @@ void editor_set_cursor_position(editor *e, u32 x, u32 y)
     
     size_ttf_font(e->font,spliced_str,&width,&height);
     
-    entity_set_position(e->cursor,value_vec2(width,height*y));
+    entity_set_position(e->cursor,value_vec2(width+global_text_margin,height*y));
 
     if(spliced_str)
     {
@@ -194,6 +194,7 @@ editor *ctor_editor()
     e->text_holder=ctor_entity(e->root);
     entity_set_relsize(e->text_holder, value_vec2(1,1));
 
+    e->wheel_override=false;
     e->start_selection=false;
     e->current_text_selection=NULL;
     e->text_selection_origin.x=0;
@@ -224,7 +225,7 @@ editor *ctor_editor()
     
     e->font=ctor_ttf_font(global_font_url,global_font_size);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
-    text_block_renderer *r=ctor_text_block_renderer(e->win,e->font,false);
+    text_block_renderer *r=ctor_text_block_renderer(e->win,e->font,false,&global_text_margin);
     text_block_renderer_set_text(r,c,e->lines_size,e->font_color,NULL);
     e->tbr=r;
     entity_add_renderer(e->text_entity,(renderer*)r);
@@ -252,11 +253,12 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
     t->text_selection_entities=NULL;
     t->text_selection_entities_size=0;
 
-
+    /*
     if(start_position.x==end_position.x && start_position.y == end_position.y)
     {
-        return t;
+        return;
     }
+    */
 
     for(u32 y=start_position.y; y<=end_position.y; y++)
     {
@@ -288,7 +290,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(w2,h*y));
+            entity_set_position(e,value_vec2(w2+global_text_margin,h*y));
         }
         else if(y==start_position.y)
         {
@@ -297,7 +299,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             char *splice=malloc_str_slice(curline, start_position.x, strlen_curline-1);
             size_ttf_font(focused_editor->font, splice, &w, &h);
             free(splice);
-
+            
             u32 w2;
             u32 h2;
             char *splice2=malloc_str_slice(curline, 0, start_position.x-1);
@@ -312,7 +314,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(w2,h*y));
+            entity_set_position(e,value_vec2(w2+global_text_margin,h*y));
         }
         else if(y==end_position.y)
         {
@@ -330,7 +332,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(0,h*y));
+            entity_set_position(e,value_vec2(0+global_text_margin,h*y));
         }
         else
         {
@@ -348,7 +350,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(0,h*y));
+            entity_set_position(e,value_vec2(0+global_text_margin,h*y));
         }
     }
     return t;
@@ -365,18 +367,24 @@ void dtor_text_selection(text_selection *s)
 
 vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
 {
-    u32 i;
-    u32 w;
-    u32 h;
+    s32 i;
+    s32 w;
+    s32 h;
     
     size_ttf_font(focused_editor->font,focused_editor->lines[0],&w,&h);
 
-    u32 cursor_x=mouse_position.x;
-    u32 cursor_y=mouse_position.y;
+    s32 cursor_x=0;
+    s32 cursor_y=mouse_position.y;
+    
+    s32 mpos_x=mouse_position.x-global_text_margin;
 
     cursor_y/=h;
 
-    if(cursor_y<focused_editor->lines_size)
+    if(mpos_x<0)
+    {
+        cursor_x=0;
+    }
+    else if(cursor_y<focused_editor->lines_size)
     {
         char *curline=focused_editor->lines[cursor_y];
 
@@ -387,26 +395,23 @@ vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
             size_ttf_font(focused_editor->font,slice,&w,&h);
             free(slice);
             
-            if(w>mouse_position.x)
+            if(w>mpos_x)
             {
                 if(i)
                 {
                     s32 dist2=0;/*distance to the character that passes the mouse*/
-
                     s32 dist=0;/*distance to the previous character to dist2*/
 
                     char *slice2=malloc_str_slice(curline,0,i-1);
                     size_ttf_font(focused_editor->font,slice2,&dist,0);
                     free(slice2);
 
-                    dist=dist-mouse_position.x;
-                    dist2=w-mouse_position.x;
+                    dist=dist-mpos_x;
+                    dist2=w-mpos_x;
                     
                     if(dist2<0)dist2*=-1;
                     
                     if(dist<0)dist*=-1;
-
-                        
 
                     if(dist2<dist)
                     {
@@ -415,8 +420,8 @@ vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
                 }
                 else
                 {
-                    s32 dist=0-mouse_position.x;
-                    s32 dist2=w-mouse_position.x;
+                    s32 dist=0-mpos_x;
+                    s32 dist2=w-mpos_x;
 
                     if(dist2<0)dist2*=-1;
                     
@@ -433,12 +438,13 @@ vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
         }
         cursor_x=i;
     }
-    else
+    
+    if(cursor_y>=focused_editor->lines_size)
     {
         cursor_y=focused_editor->lines_size-1;
         cursor_x=strlen(focused_editor->lines[cursor_y]);
     }
-    
+
     return value_vec2(cursor_x,cursor_y);
 }
 char *get_text(vec2 begin, vec2 end, editor *focused_editor)
@@ -622,7 +628,7 @@ int main()
                             dtor_text_selection(focused_editor->current_text_selection);        
                         }
                     
-                        vec2 new_selection=position_to_cursor(vec2_add(mouse_position,offset), focused_editor);
+                        vec2 new_selection=position_to_cursor(vec2_sub(mouse_position,offset), focused_editor);
                         vec2 pos=focused_editor->text_selection_origin;
 
                         vec2 actual_new_selection=new_selection;
@@ -643,6 +649,11 @@ int main()
                         editor_set_cursor_position(focused_editor, actual_new_selection.x, actual_new_selection.y);
                     }
                 }
+                if(e.type==MOUSE_WHEEL)
+                {
+                    offset.y-=e.mouse_info.y*(entity_get_render_size(focused_editor->cursor).y);
+                    focused_editor->wheel_override=true;
+                }
                 /*@bug sometimes the cursor changes row but doesnt change column*/
                 if(e.type==LEFT_MOUSE && e.pressed)
                 {
@@ -651,7 +662,7 @@ int main()
                         dtor_text_selection(focused_editor->current_text_selection);
                         focused_editor->current_text_selection=NULL;
                     }
-                    vec2 cursor_position=position_to_cursor(vec2_add(mouse_position,offset),focused_editor);
+                    vec2 cursor_position=position_to_cursor(vec2_sub(mouse_position,offset),focused_editor);
 
                     editor_set_cursor_position(focused_editor, cursor_position.x, cursor_position.y);
 
@@ -669,7 +680,7 @@ int main()
                     }
                     */
                     focused_editor->start_selection=false;
-                    focused_editor->text_selection_end=position_to_cursor(vec2_add(mouse_position,offset),focused_editor);
+                    focused_editor->text_selection_end=position_to_cursor(vec2_sub(mouse_position,offset),focused_editor);
                 }
 
                 if(e.type==WINDOW_CLOSE)
@@ -1281,27 +1292,45 @@ int main()
             int h;
             window_get_size(editors[i]->win,&w,&h);
             entity_set_size(editors[i]->root,value_vec2(w,h));
-            
-            {
-                vec2 cursorpos=entity_get_position(editors[i]->cursor);
-                vec2 cursorsize=entity_get_size(editors[i]->cursor);
-                offset.x=0;
-                offset.y=0;
-                if(cursorpos.x+cursorsize.x>w)
-                {
-                    offset.x=w-(cursorpos.x+cursorsize.x);
-                }
-                if(cursorpos.y+cursorsize.y>h)
-                {
-                    offset.y=h-(cursorpos.y+cursorsize.y);
-                }
-                entity_set_position(editors[i]->text_holder,offset);
-            }
 
             clear(editors[i]->win);
             update_entity_recursive(editors[i]->root);
             render_entity_recursive(editors[i]->root);
             flip(editors[i]->win);
+                
+            if(!editors[i]->wheel_override)
+            {
+                vec2 cursorpos=entity_get_render_position(editors[i]->cursor);
+                vec2 cursorsize=entity_get_render_size(editors[i]->cursor);
+
+                if(cursorpos.x+cursorsize.x>w)
+                {
+                    offset.x+=w-(cursorpos.x+cursorsize.x);
+                }
+                if(cursorpos.y+cursorsize.y>h)
+                {
+                    offset.y+=h-(cursorpos.y+cursorsize.y);
+                }
+                if(cursorpos.x<0)
+                {
+                    offset.x+=-(cursorpos.x);
+                }
+                if(cursorpos.y<0)
+                {
+                    offset.y+=-(cursorpos.y);
+                }
+            }
+            
+            if(offset.x > 0)
+            {
+                offset.x=0;
+            }
+            if(offset.y > 0)
+            {
+                offset.y=0;
+            }
+
+            entity_set_position(editors[i]->text_holder,offset);
         }
 
         if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)
