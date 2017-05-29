@@ -19,17 +19,22 @@ if you select a line from the 0th character and go upwards with the selection it
 */
 
 /*@todo actually check off this shit
+sort out cursor positioning on undo/redo, especially for deleting selections
 
 auto indent and braces completion, insert second newline and indent after enter on brace ({[]})
 
 shift makes you highlight whenever you move the cursor in any way (shift down should assign to focused_editor->current_text_selection)
 
 other ctrl shortcut - undo,redo - search and replace should (optionally?) be able to work on all windows
+undo redo, whenever you insert text into the document push the action into some array and set index to top of array, when undo do
+opposite action of array[index] and decrement index, when pressing redo do action at array[index] and increment index
 
 ui and files (js port?) - if the ui is changed need to check the mouse position and change the system_cursor (hittest)
 
 ctrl arrows, ctrl shift arrows for selection (shared code with mouse selection and parsing, it goes to tokens)
 syntax highlighting & auto completion
+
+tbr - if line numbers render at greater than margin size clip them
 
 optimize paste and line insertion/removal (im sure rendering is the bottleneck)
 
@@ -43,20 +48,19 @@ turn on Wall, get compiling on linux, general testing
 
 ? use my own fullscreen instead of sdl so it doesnt minimize when I click away
 
-? change to use sdl_textinputevent? it might be wonky, its a pretty big abstraction`
+? change to use sdl_textinputevent? it might be wonky, its a pretty big abstraction
 
-*done*fix camera so if you are below the window you can still move the cursor up, same with left/right
-*done*mouse scroll
+*done* fix camera so if you are below the window you can still move the cursor up, same with left/right
+*done* mouse scroll
 *done* ctrl key disabled regular key entry because it is used for ctrl commands e.g. ctrl c (USE CLIPBOARD)
 *done* move camera on cursor pose
-*done*make camera move when selection and going beyond end of screen (so it functions like vscode)
+*done* make camera move when selection and going beyond end of screen (so it functions like vscode)
 *done* mouse place cursor and selection
 *done* home, delete, end
 *done* arbitrary number of windows, handle opening and closing and removing renderers to those windows
 *done* end process once all windows are closed
 
 @perf
-
 dirty
 sort renderers by renderer type
 profile to find bottlenecks
@@ -112,10 +116,13 @@ possibly overloading
 possibly custom operators
 */
 
+typedef struct editor editor;
+void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_action, u32 type);
+void add_text(editor *focused_editor, char *clip, bool do_add_action);
 
 char const *global_font_url="res/UbuntuMono-R.ttf";
 u32 global_font_size=24;
-s32 global_text_margin=75;
+s32 global_text_margin=0;/*if 0 line numbers wont render*/
 
 typedef struct text_selection
 {
@@ -123,6 +130,7 @@ typedef struct text_selection
     entity **text_selection_entities;
     u32 text_selection_entities_size;
 } text_selection;
+
 typedef struct keystate_interpreter_info
 {
     bool shift_pressed;
@@ -131,11 +139,36 @@ typedef struct keystate_interpreter_info
     s64 *pressed_keys;
     u32 pressed_keys_size;
 } keystate_interpreter_info;
+typedef struct action
+{
+    vec2 cursor_position;
+    vec2 optional_end_position;
+    enum {ACTION_TEXT,ACTION_BACKSPACE,ACTION_DELETE} type;
+    char *text;
+} action;
+action *ctor_action(vec2 cursor_position, vec2 optional_end_position, char *text, u32 type)
+{
+    action *a=malloc(sizeof(action));
+    a->cursor_position=cursor_position;
+    a->optional_end_position=optional_end_position;
+    a->text=text;
+    a->type=type;
+    return a;
+}
+void dtor_action(action *a)
+{
+    free(a->text);
+    free(a);
+}
 
 typedef struct editor
 {
     bool start_selection;
     bool wheel_override;
+
+    action **action_list;
+    s32 action_list_size;
+    s32 action_list_index;
 
     text_selection *current_text_selection;
     vec2 text_selection_origin;
@@ -154,8 +187,8 @@ typedef struct editor
 
     entity *focused_entity;
     
-    u32 cursor_x;
-    u32 cursor_y;
+    s32 cursor_x;
+    s32 cursor_y;
     entity *cursor;
 } editor;
 void editor_set_cursor_position(editor *e, u32 x, u32 y)
@@ -211,6 +244,10 @@ editor *ctor_editor()
     char **c=malloc(sizeof(char*));
     c[0]=strcpy(malloc(strlen("")+1),"");
 
+    e->action_list=NULL;
+    e->action_list_size=0;
+    e->action_list_index=0;
+
     e->is_fullscreen=false;//assumes windows start in windowed mode
 
     e->lines=c;
@@ -225,7 +262,7 @@ editor *ctor_editor()
     
     e->font=ctor_ttf_font(global_font_url,global_font_size);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
-    text_block_renderer *r=ctor_text_block_renderer(e->win,e->font,false,&global_text_margin);
+    text_block_renderer *r=ctor_text_block_renderer(e->win,e->font,false,global_text_margin?&global_text_margin:NULL);
     text_block_renderer_set_text(r,c,e->lines_size,e->font_color,NULL);
     e->tbr=r;
     entity_add_renderer(e->text_entity,(renderer*)r);
@@ -237,6 +274,11 @@ void dtor_editor(editor *e)
 {
     dtor_window(e->win);
     dtor_entity(e->root);/*@todo implement this function and it should free all children*/
+    for(u32 i=0; i<e->action_list_size; i++)
+    {
+        dtor_action(e->action_list[i]);
+    }
+    free(e->action_list);
     /*@todo @bug @leak how to handle freeing of lines? does closing an editor free the lines? do they have their own copy?*/
     dtor_ttf_font(e->font);
     dtor_text_block_renderer(e->tbr);
@@ -364,6 +406,304 @@ void dtor_text_selection(text_selection *s)
     }
     free(s->text_selection_entities);
 }
+
+void add_action(editor *e, action *a)
+{   
+    printf("(ENTRY) add_action - e->action_list_size: %d\n",e->action_list_size);
+    printf("(ENTRY) add_action - action_list_index: %d\n",e->action_list_index);
+    /*@todo delete all actions after the index*/
+    if(e->action_list_index < e->action_list_size-1)
+    {
+        for(u32 i=e->action_list_index+1; i<e->action_list_size; i++)
+        {
+            dtor_action(e->action_list[i]);
+            e->action_list[i]=NULL;
+        }
+        printf("CUTTING OFF HEAD\n");
+
+        e->action_list_size=e->action_list_index+1;
+        e->action_list_size++;
+        e->action_list=realloc(e->action_list, e->action_list_size*sizeof(action*));
+        
+        e->action_list_index=e->action_list_size-1;
+        e->action_list[e->action_list_index]=a;
+    }
+    else
+    {
+        e->action_list_size++;
+        e->action_list=realloc(e->action_list, e->action_list_size*sizeof(action*));
+        e->action_list[e->action_list_size-1]=a;    
+        e->action_list_index=e->action_list_size-1;    
+    }
+    printf("(EXIT) add_action - e->action_list_size: %d\n",e->action_list_size);
+    printf("(EXIT) add_action - action_list_index: %d\n",e->action_list_index);
+}
+void do_action(editor *e, bool un)
+{
+    printf("do_action - (action_list_index,action_list_size): %d,%d\n",e->action_list_index,e->action_list_size);
+    action *a=NULL;
+
+    
+    if(un)
+    {
+        if(!e->action_list_size || e->action_list_index < 0)
+        {
+            return;
+        }
+        a = e->action_list[e->action_list_index];
+
+        vec2 cursor_pos=e->action_list[e->action_list_index]->cursor_position;
+        editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
+
+        if(a->type==ACTION_TEXT)
+        {
+            if(e->action_list_index >=0)
+            {
+                printf("do_action - undo text: \"%s\"\n",a->text);
+                vec2 end;
+                u32 newline_count=0;
+                u32 i=0;
+                u32 strlen_text=strlen(a->text);
+                bool found_newline=false;
+                u32 last_newline_index=0;
+
+                for(i=0; i<strlen_text; i++)
+                {
+                    if(a->text[i]=='\n')
+                    {
+                        found_newline=true;
+                        newline_count++;
+                        last_newline_index=i;
+                    }
+                }
+
+                end.x=cursor_pos.x;
+                if(found_newline)
+                {
+                    u32 strlen_lastline=strlen(&a->text[last_newline_index+1]);
+                    end.x = strlen_lastline;
+                    printf("STRLEN_LASTLINE: %d\n",strlen_lastline);
+                }
+                else
+                {
+                    end.x += strlen(a->text);
+                }
+                end.y = a->cursor_position.y + newline_count;
+                
+                printf("do_action - remove text: (%d,%d), (%d,%d)\n",(u32)cursor_pos.x,(u32)cursor_pos.y,(u32)end.x,(u32)end.y);
+                delete_text(cursor_pos, end, e, false, ACTION_DELETE);
+
+                e->action_list_index--;
+            }
+        }
+        else if(a->type==ACTION_BACKSPACE)
+        {
+            add_text(e,a->text,false);
+            e->action_list_index--;
+        }
+        else if(a->type==ACTION_DELETE)
+        {
+            add_text(e,a->text,false);
+            e->action_list_index--;
+            editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
+        }
+    }
+    else
+    {/*redo*/
+        if(e->action_list_index+1 > e->action_list_size-1)
+        {
+            return;
+        }
+
+        e->action_list_index++;
+        a = e->action_list[e->action_list_index];
+        vec2 cursor_pos=e->action_list[e->action_list_index]->cursor_position;
+        editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
+        
+        if(a->type==ACTION_TEXT)
+        {
+            add_text(e, a->text, false);
+        }
+        else if(a->type==ACTION_DELETE)
+        {
+            delete_text(a->cursor_position, a->optional_end_position, e, false, ACTION_DELETE);
+            editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
+        }
+        else if(a->type==ACTION_BACKSPACE)
+        {
+            delete_text(a->cursor_position, a->optional_end_position, e, false, ACTION_DELETE);
+        }
+    }
+}
+/*
+if you pass the end of one line and the beginning of the next line it concats them
+
+*/
+void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_action, u32 type)
+{
+    if((end.y<begin.y) || (begin.y==end.y && begin.x > end.x))
+    {
+        vec2 temp=end;
+        end=begin;
+        begin=temp;
+    }
+    /*@old bug reallocd array and was using old pointer, because i was holding two pointers to it derp*/
+    char *built_string=NULL;
+
+    char *first_line=NULL;
+    char *last_line=NULL;
+    for(u32 y=begin.y; y<=end.y; y++)
+    {
+        char *curline=focused_editor->lines[y];
+        if(begin.y==end.y)
+        {
+            char *first=malloc_str_slice(curline, 0, begin.x-1);
+            
+            char *second=malloc_str_slice(curline, end.x, strlen(curline)-1);
+
+            if(do_add_action)
+            {
+                built_string=malloc_str_slice(curline,begin.x,end.x-1);
+            }
+
+            focused_editor->lines[y]=str_cat(first,second);
+
+            free(first);
+            free(second);
+            free(curline);
+            break;
+        }
+        else if(y==begin.y)
+        {
+            first_line=malloc_str_slice(curline,0,begin.x-1);
+            if(do_add_action)
+            {
+                built_string=malloc_str_slice(curline,begin.x,strlen(curline)-1);
+            }
+        }
+        else if(y==end.y)
+        {
+            u32 i;
+            last_line=malloc_str_slice(curline,end.x,strlen(curline)-1);
+
+            if(do_add_action)
+            {
+                char *temp=built_string;
+                built_string=str_cat(built_string,"\n");
+                free(temp);
+                temp=built_string;
+                built_string=str_cat(built_string,malloc_str_slice(curline,0,end.x-1));
+                free(temp);
+            }
+
+            focused_editor->lines[y]=NULL;
+            //free(curline);
+        }
+        else
+        {
+            if(do_add_action)
+            {
+                char *temp=built_string;
+                built_string=str_cat(built_string,"\n");
+                free(temp);
+                temp=built_string;
+                built_string=str_cat(built_string,focused_editor->lines[y]);
+                free(temp);
+            }
+            focused_editor->lines[y]=NULL;
+            //free(curline);
+        }
+        
+    }
+    for(s32 i=0; i<focused_editor->lines_size; i++)
+    {
+        if(!focused_editor->lines[i])
+        {
+            for(s32 i2=i; i2<focused_editor->lines_size-1; i2++)
+            {
+                focused_editor->lines[i2]=focused_editor->lines[i2+1];
+            }
+            
+            i--;
+
+            focused_editor->lines_size-=1;
+            focused_editor->lines=realloc(focused_editor->lines,focused_editor->lines_size*sizeof(char*));
+        }
+    }
+    if(first_line && last_line)
+    {
+        free(focused_editor->lines[(int)begin.y]);
+        focused_editor->lines[(int)begin.y]=str_cat(first_line,last_line);
+        free(first_line);
+        free(last_line);
+    }
+    
+    if(do_add_action)
+    {
+        printf("%s\n",built_string);
+        add_action(focused_editor,ctor_action(begin, end, built_string, type));
+    }
+    editor_set_cursor_position(focused_editor, begin.x, begin.y);
+    text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,NULL);
+}
+/*
+@todo change to pass position explicitly
+dont free clip, it is passed to an action which frees it
+*/
+void add_text(editor *focused_editor, char *clip, bool do_add_action)
+{
+    if(focused_editor->current_text_selection)
+    {
+        delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor,false,ACTION_DELETE);
+        dtor_text_selection(focused_editor->current_text_selection);
+        focused_editor->current_text_selection=NULL;
+        focused_editor->start_selection=false;
+    }
+
+    u32 clip_index=0;
+    u32 strlen_clip=strlen(clip);
+
+    vec2 cursor_position_start;
+    cursor_position_start.x=focused_editor->cursor_x;
+    cursor_position_start.y=focused_editor->cursor_y;
+
+    while(clip_index<strlen_clip)
+    {     
+        if(clip[clip_index]=='\n')
+        {                                 
+            focused_editor->lines_size+=1;
+            focused_editor->lines=realloc(focused_editor->lines,focused_editor->lines_size*sizeof(char*));
+            for(u32 i=focused_editor->lines_size-1; i>focused_editor->cursor_y+1; i--)
+            {
+                focused_editor->lines[i]=focused_editor->lines[i-1];
+            }
+            
+            u32 next_line_splice_start=focused_editor->cursor_x;
+            u32 next_line_splice_end=strlen(focused_editor->lines[focused_editor->cursor_y])-1;
+            focused_editor->lines[focused_editor->cursor_y+1]=malloc_str_slice(focused_editor->lines[focused_editor->cursor_y],next_line_splice_start,next_line_splice_end);
+            
+            char *temp=focused_editor->lines[focused_editor->cursor_y];
+            focused_editor->lines[focused_editor->cursor_y]=malloc_str_slice(temp,0,focused_editor->cursor_x-1);
+            free(temp);
+
+            editor_set_cursor_position(focused_editor,0,focused_editor->cursor_y+1);
+        }
+        else
+        {
+            char *curline=focused_editor->lines[focused_editor->cursor_y];
+            char *modstring=str_insert(curline,clip[clip_index],focused_editor->cursor_x);
+            focused_editor->lines[focused_editor->cursor_y]=modstring;
+            editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
+        }
+        clip_index++;
+    }
+    if(do_add_action)
+    {
+        add_action(focused_editor,ctor_action(cursor_position_start, value_vec2(0,0), clip, ACTION_TEXT));
+    }
+    text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
+}
+
 
 vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor)
 {
@@ -495,78 +835,9 @@ char *get_text(vec2 begin, vec2 end, editor *focused_editor)
     }
     return retval;
 }
-void delete_text(vec2 begin, vec2 end, editor *focused_editor)
-{
-    if((end.y<begin.y) || (begin.y==end.y && begin.x > end.x))
-    {
-        vec2 temp=end;
-        end=begin;
-        begin=temp;
-    }
-    /*@old bug reallocd array and was using old pointer, because i was holding two pointers to it derp*/
 
-    char *first_line=NULL;
-    char *last_line=NULL;
-    for(u32 y=begin.y; y<=end.y; y++)
-    {
-        char *curline=focused_editor->lines[y];
-        if(begin.y==end.y)
-        {
-            char *first=malloc_str_slice(curline, 0, begin.x-1);
-            
-            char *second=malloc_str_slice(curline, end.x, strlen(curline)-1);
-            focused_editor->lines[y]=str_cat(first,second);
 
-            free(first);
-            free(second);
-            free(curline);
-            break;
-        }
-        else if(y==begin.y)
-        {
-            first_line=malloc_str_slice(curline,0,begin.x-1);
-        }
-        else if(y==end.y)
-        {
-            u32 i;
-            last_line=malloc_str_slice(curline,end.x,strlen(curline)-1);
-            
-            focused_editor->lines[y]=NULL;
-            //free(curline);
-        }
-        else
-        {
-            focused_editor->lines[y]=NULL;
-            //free(curline);
-        }
-        
-    }
-    for(s32 i=0; i<focused_editor->lines_size; i++)
-    {
-        if(!focused_editor->lines[i])
-        {
-            for(s32 i2=i; i2<focused_editor->lines_size-1; i2++)
-            {
-                focused_editor->lines[i2]=focused_editor->lines[i2+1];
-            }
-            
-            i--;
 
-            focused_editor->lines_size-=1;
-            focused_editor->lines=realloc(focused_editor->lines,focused_editor->lines_size*sizeof(char*));
-        }
-    }
-    if(first_line && last_line)
-    {
-        free(focused_editor->lines[(int)begin.y]);
-        focused_editor->lines[(int)begin.y]=str_cat(first_line,last_line);
-        free(first_line);
-        free(last_line);
-    }
-    
-    editor_set_cursor_position(focused_editor, begin.x, begin.y);
-    text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,NULL);
-}
 
 int main()
 {
@@ -715,7 +986,10 @@ int main()
                         if(window_get_id(editors[i]->win)==e.id)
                         {
                             focused_editor=editors[i];
-                            set_mouse_capture_on_currently_focused_window(true);
+                            /*@bug mouse doesnt properly register events ending if its not set,
+                            but if it is set then it registers events you wouldnt expect...
+                            set_mouse_capture_on_currently_focused_window(true);*/
+
                             break;
                         }
                     }
@@ -850,6 +1124,14 @@ int main()
                                 set_clipboard_text(get_text(focused_editor->text_selection_origin,focused_editor->text_selection_end,focused_editor));
                             }
                         }
+                        if(e.type==KEY_Z)
+                        {
+                            do_action(focused_editor,true);
+                        }
+                        if(e.type==KEY_Y)
+                        {
+                            do_action(focused_editor,false);
+                        }
                         if(e.type==KEY_V)
                         {
                             char *sdl_clip=get_clipboard_text();
@@ -858,51 +1140,20 @@ int main()
                             clip=str_remove_characters(clip,'\r');
                             if(clip)
                             {
-                                if(focused_editor->current_text_selection)
-                                {
-                                    delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor);
-                                    dtor_text_selection(focused_editor->current_text_selection);
-                                    focused_editor->current_text_selection=NULL;
-                                    focused_editor->start_selection=false;
-                                }
-
-                                u32 clip_index=0;
-                                u32 strlen_clip=strlen(clip);
-                                
-                                while(clip_index<strlen_clip)
-                                {     
-                                    if(clip[clip_index]=='\n')
-                                    {                                 
-                                        focused_editor->lines_size+=1;
-                                        focused_editor->lines=realloc(focused_editor->lines,focused_editor->lines_size*sizeof(char*));
-                                        for(i=focused_editor->lines_size-1; i>focused_editor->cursor_y+1; i--)
-                                        {
-                                            focused_editor->lines[i]=focused_editor->lines[i-1];
-                                        }
-                                        
-                                        u32 next_line_splice_start=focused_editor->cursor_x;
-                                        u32 next_line_splice_end=strlen(focused_editor->lines[focused_editor->cursor_y])-1;
-                                        focused_editor->lines[focused_editor->cursor_y+1]=malloc_str_slice(focused_editor->lines[focused_editor->cursor_y],next_line_splice_start,next_line_splice_end);
-                                        
-                                        char *temp=focused_editor->lines[focused_editor->cursor_y];
-                                        focused_editor->lines[focused_editor->cursor_y]=malloc_str_slice(temp,0,focused_editor->cursor_x-1);
-                                        free(temp);
-
-                                        editor_set_cursor_position(focused_editor,0,focused_editor->cursor_y+1);
-                                    }
-                                    else
-                                    {
-                                        char *curline=focused_editor->lines[focused_editor->cursor_y];
-                                        char *modstring=str_insert(curline,clip[clip_index],focused_editor->cursor_x);
-                                        focused_editor->lines[focused_editor->cursor_y]=modstring;
-                                        editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
-                                    }
-                                    clip_index++;
-                                }
-                                free(clip);
-                                text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
+                                add_text(focused_editor,clip,true);
                             }
 
+                        }
+                        if(e.type==KEY_X)
+                        {
+                            if(focused_editor->current_text_selection)
+                            {
+                                set_clipboard_text(get_text(focused_editor->text_selection_origin,focused_editor->text_selection_end,focused_editor));
+                                delete_text(focused_editor->text_selection_origin,focused_editor->text_selection_end, focused_editor, true, ACTION_DELETE);
+                                dtor_text_selection(focused_editor->current_text_selection);
+                                focused_editor->current_text_selection=NULL;
+                                focused_editor->start_selection=false;
+                            }
                         }
                     }
                     else
@@ -911,13 +1162,35 @@ int main()
                         {
                             if(focused_editor->current_text_selection)
                             {
-                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor);
+                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor, true, ACTION_DELETE);
                                 dtor_text_selection(focused_editor->current_text_selection);
                                 focused_editor->current_text_selection=NULL;
                                 focused_editor->start_selection=false;
                             }
                             else
                             {
+                                vec2 begin;
+                                begin.x=focused_editor->cursor_x;
+                                begin.y=focused_editor->cursor_y;
+                                vec2 end;
+                                end.x=focused_editor->cursor_x+1;
+                                end.y=focused_editor->cursor_y;
+
+                                
+                                if(end.x>strlen(focused_editor->lines[focused_editor->cursor_y]))
+                                {                                    
+                                    if(focused_editor->cursor_y<focused_editor->lines_size-1)
+                                    {
+                                        end.x=0;
+                                        end.y++;    
+                                        delete_text(begin,end,focused_editor,true, ACTION_DELETE);
+                                    }
+                                }
+                                else
+                                {
+                                    delete_text(begin,end,focused_editor,true,ACTION_DELETE);
+                                }
+                                /*
                                 if(focused_editor->cursor_x<strlen(focused_editor->lines[focused_editor->cursor_y]))
                                 {
                                     char *curline=focused_editor->lines[focused_editor->cursor_y];
@@ -947,6 +1220,7 @@ int main()
                                     free(curline);
                                     free(nextline);
                                 }
+                                */
                             }
                         }
                         if(e.type==KEY_END)
@@ -1004,23 +1278,14 @@ int main()
                         {
                             if(focused_editor->current_text_selection)
                             {
-                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor);
+                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor,true,ACTION_DELETE);
                                 dtor_text_selection(focused_editor->current_text_selection);
                                 focused_editor->current_text_selection=NULL;
                                 
                                 focused_editor->start_selection=false;
                             }
-                            char char_to_insert=' ';
-                            for(u32 i=0; i<num_spaces_to_insert_on_tab; i++)
-                            {
-                                char *curline=focused_editor->lines[focused_editor->cursor_y];
-                                char *modstring=str_insert(curline,char_to_insert,focused_editor->cursor_x);
-                                focused_editor->lines[focused_editor->cursor_y]=modstring;
-                                editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
-                            }
-                            text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
-                            
-                             
+                            char *str=strcpy(malloc(5),"    ");
+                            add_text(focused_editor, str,true);
                         }
                         if(e.type==KEY_F11)
                         {
@@ -1031,7 +1296,7 @@ int main()
                         {
                             if(focused_editor->current_text_selection)
                             {
-                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor);
+                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor,true,ACTION_DELETE);
                                 dtor_text_selection(focused_editor->current_text_selection);
                                 focused_editor->current_text_selection=NULL;
                                 focused_editor->start_selection=false;
@@ -1058,12 +1323,11 @@ int main()
                             {
                                 char_to_insert=apply_shift(char_to_insert, false);
                             }
-                            char *modstring=str_insert(curline,char_to_insert,focused_editor->cursor_x);
-                            focused_editor->lines[focused_editor->cursor_y]=modstring;
-                            text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
-                            editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
 
-                             
+                            char *str=malloc(2);
+                            str[0]=char_to_insert;
+                            str[1]=0;
+                            add_text(focused_editor,str,true); 
                         }
                         if(e.type==KEY_LEFT_SHIFT||e.type==KEY_RIGHT_SHIFT)
                         {
@@ -1084,12 +1348,13 @@ int main()
                         {
                             if(focused_editor->current_text_selection)
                             {
-                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor);
+                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor,true,ACTION_DELETE);
                                 dtor_text_selection(focused_editor->current_text_selection);
                                 focused_editor->current_text_selection=NULL;
                                 focused_editor->start_selection=false;
                             }
-
+                            add_text(focused_editor,strcpy(malloc(2),"\n"), true);
+                            /*
                             u32 i;
                             char *curline=focused_editor->lines[focused_editor->cursor_y];
                             char *startsplice;
@@ -1120,20 +1385,42 @@ int main()
                             focused_editor->lines[focused_editor->cursor_y+1]=endsplice;
                             text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,NULL);
                             editor_set_cursor_position(focused_editor,0,focused_editor->cursor_y+1);
-
-                             
+                            */                             
                         }
                         if(e.type==KEY_BACKSPACE)
                         {
                             if(focused_editor->current_text_selection)
                             {
-                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor);
+                                delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end,focused_editor,true,ACTION_DELETE);
                                 dtor_text_selection(focused_editor->current_text_selection);
                                 focused_editor->current_text_selection=NULL;
                                 focused_editor->start_selection=false;
                             }
                             else
                             {
+                                vec2 begin;
+                                begin.x=((s32)focused_editor->cursor_x)-1;
+                                begin.y=focused_editor->cursor_y;
+                                vec2 end;
+                                end.x=focused_editor->cursor_x;
+                                end.y=focused_editor->cursor_y;
+
+                                  
+                                if(begin.x<0)
+                                {                           
+                                    if(focused_editor->cursor_y>0)
+                                    {
+                                        begin.x=strlen(focused_editor->lines[focused_editor->cursor_y-1]);
+                                        begin.y--;    
+                                        delete_text(begin,end,focused_editor,true,ACTION_DELETE);
+                                    }
+                                }
+                                else
+                                {
+                                    delete_text(begin,end,focused_editor,true,ACTION_BACKSPACE);
+                                }
+                                
+                                 /*
                                 if(focused_editor->cursor_x)
                                 {
                                     char *curline=focused_editor->lines[focused_editor->cursor_y];
@@ -1143,13 +1430,6 @@ int main()
                                     text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,NULL);
                                     editor_set_cursor_position(focused_editor,focused_editor->cursor_x,focused_editor->cursor_y);
                                 }
-                                /*
-                                else if(1)
-                                {
-                                    char *curline=focused_editor->lines[focused_editor->cursor_y];
-                                    char *prevline=focused_editor->lines[focused_editor->cursor_y-1];
-                                }
-                                */
                                 else if(focused_editor->cursor_y)
                                 {
                                     u32 i=0;
@@ -1173,8 +1453,8 @@ int main()
                                     free(curline);
                                     free(prevline);
                                 }
+                                */
                             }
-                             
                         }
                         if(e.type==KEY_CAPS_LOCK)
                         {
