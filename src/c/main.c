@@ -7,6 +7,10 @@
 #include <string.h>
 
 /*@bugs
+text selection wasnt deleted when using the delete key
+
+text selection isnt deleted when using undo/redo
+
 cant select just a single character
 
 sometimes cursor is unresponsive after opening app
@@ -19,8 +23,14 @@ if you select a line from the 0th character and go upwards with the selection it
 */
 
 /*@todo actually check off this shit
-sort out cursor positioning on undo/redo, especially for deleting selections
 
+make cursor x last highest index
+
+shift tab to untab (make tab and untab work with text selection)
+
+sort out cursor positioning on undo/redo, especially for deleting selections
+    make default to put cursor at end of insertion?
+    
 auto indent and braces completion, insert second newline and indent after enter on brace ({[]})
 
 shift makes you highlight whenever you move the cursor in any way (shift down should assign to focused_editor->current_text_selection)
@@ -121,7 +131,7 @@ void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_actio
 void add_text(editor *focused_editor, char *clip, bool do_add_action);
 
 char const *global_font_url="res/UbuntuMono-R.ttf";
-u32 global_font_size=24;
+u32 global_font_size=54;
 s32 global_text_margin=0;/*if 0 line numbers wont render*/
 
 typedef struct text_selection
@@ -226,6 +236,7 @@ editor *ctor_editor()
     e->root=ctor_entity(NULL);
     e->text_holder=ctor_entity(e->root);
     entity_set_relsize(e->text_holder, value_vec2(1,1));
+    //entity_set_relpos(e->text_holder, value_vec2(.5,.5));
 
     e->wheel_override=false;
     e->start_selection=false;
@@ -442,7 +453,6 @@ void do_action(editor *e, bool un)
 {
     printf("do_action - (action_list_index,action_list_size): %d,%d\n",e->action_list_index,e->action_list_size);
     action *a=NULL;
-
     
     if(un)
     {
