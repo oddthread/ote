@@ -6,6 +6,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+char ote_log_buffer[100];
+u32 const LOG_TYPE_ACTION=0;
+u32 const LOG_TYPE_STRINGS=1;
+bool log_type_enabled[2]={false,false};
+
+void ote_log(char *text,u32 type)
+{
+    if(log_type_enabled[type])
+    {
+        printf("\nLOG TYPE: %d\n<BEGIN_LOG>",type);
+        printf(text);
+        printf("<END_LOG>\n");
+    }
+}
+
 /*@bugs
 text selection wasnt deleted when using the delete key
 
@@ -130,7 +145,7 @@ typedef struct editor editor;
 void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_action, u32 type);
 void add_text(editor *focused_editor, char *clip, bool do_add_action);
 
-char const *global_font_url="res/UbuntuMono-R.ttf";
+char const *global_font_url="res/umr.ttf";
 u32 global_font_size=54;
 s32 global_text_margin=0;/*if 0 line numbers wont render*/
 
@@ -420,8 +435,10 @@ void dtor_text_selection(text_selection *s)
 
 void add_action(editor *e, action *a)
 {   
-    printf("(ENTRY) add_action - e->action_list_size: %d\n",e->action_list_size);
-    printf("(ENTRY) add_action - action_list_index: %d\n",e->action_list_index);
+    sprintf(ote_log_buffer,"(ENTRY) add_action - e->action_list_size: %d\n",e->action_list_size);
+    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
+    sprintf(ote_log_buffer,"(ENTRY) add_action - action_list_index: %d\n",e->action_list_index);
+    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
     /*@todo delete all actions after the index*/
     if(e->action_list_index < e->action_list_size-1)
     {
@@ -430,7 +447,7 @@ void add_action(editor *e, action *a)
             dtor_action(e->action_list[i]);
             e->action_list[i]=NULL;
         }
-        printf("CUTTING OFF HEAD\n");
+        ote_log("CUTTING OFF HEAD\n",LOG_TYPE_ACTION);
 
         e->action_list_size=e->action_list_index+1;
         e->action_list_size++;
@@ -446,12 +463,15 @@ void add_action(editor *e, action *a)
         e->action_list[e->action_list_size-1]=a;    
         e->action_list_index=e->action_list_size-1;    
     }
-    printf("(EXIT) add_action - e->action_list_size: %d\n",e->action_list_size);
-    printf("(EXIT) add_action - action_list_index: %d\n",e->action_list_index);
+    sprintf(ote_log_buffer,"(EXIT) add_action - e->action_list_size: %d\n",e->action_list_size);
+    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
+    sprintf(ote_log_buffer,"(EXIT) add_action - action_list_index: %d\n",e->action_list_index);
+    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
 }
 void do_action(editor *e, bool un)
 {
-    printf("do_action - (action_list_index,action_list_size): %d,%d\n",e->action_list_index,e->action_list_size);
+    sprintf(ote_log_buffer,"do_action - (action_list_index,action_list_size): %d,%d\n",e->action_list_index,e->action_list_size);
+    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
     action *a=NULL;
     
     if(un)
@@ -469,7 +489,8 @@ void do_action(editor *e, bool un)
         {
             if(e->action_list_index >=0)
             {
-                printf("do_action - undo text: \"%s\"\n",a->text);
+                sprintf(ote_log_buffer,"do_action - undo text: \"%s\"\n",a->text);
+                ote_log(ote_log_buffer,LOG_TYPE_ACTION);
                 vec2 end;
                 u32 newline_count=0;
                 u32 i=0;
@@ -492,7 +513,8 @@ void do_action(editor *e, bool un)
                 {
                     u32 strlen_lastline=strlen(&a->text[last_newline_index+1]);
                     end.x = strlen_lastline;
-                    printf("STRLEN_LASTLINE: %d\n",strlen_lastline);
+                    sprintf(ote_log_buffer,"STRLEN_LASTLINE: %d\n",strlen_lastline);
+                    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
                 }
                 else
                 {
@@ -500,7 +522,9 @@ void do_action(editor *e, bool un)
                 }
                 end.y = a->cursor_position.y + newline_count;
                 
-                printf("do_action - remove text: (%d,%d), (%d,%d)\n",(u32)cursor_pos.x,(u32)cursor_pos.y,(u32)end.x,(u32)end.y);
+                sprintf(ote_log_buffer,"do_action - remove text: (%d,%d), (%d,%d)\n",(u32)cursor_pos.x,(u32)cursor_pos.y,(u32)end.x,(u32)end.y);
+                ote_log(ote_log_buffer,LOG_TYPE_ACTION);
+                
                 delete_text(cursor_pos, end, e, false, ACTION_DELETE);
 
                 e->action_list_index--;
@@ -650,7 +674,6 @@ void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_actio
     
     if(do_add_action)
     {
-        printf("%s\n",built_string);
         add_action(focused_editor,ctor_action(begin, end, built_string, type));
     }
     editor_set_cursor_position(focused_editor, begin.x, begin.y);

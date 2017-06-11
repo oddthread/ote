@@ -1,0 +1,1 @@
+gcc -std=c99 ../OSAL/src/c/graphics.c ../OSAL/src/c/input.c ../OSAL/src/c/net.c ../OSAL/src/c/sound.c ../OSAL/src/c/system.c ../OSAL/src/c/util.c ../OTG/src/c/OTG.c src/c/main.c -lSDL2 -lSDL2_mixer -lSDL2_image -lSDL2_ttf -lSDL2_net -lm -o bin/main.linux -w
