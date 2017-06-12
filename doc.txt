@@ -1,0 +1,120 @@
+
+/*@bugs
+text selection wasnt deleted when using the delete key
+
+text selection isnt deleted when using undo/redo
+
+cant select just a single character
+
+sometimes cursor is unresponsive after opening app
+
+sometimes enter will skip the first keypress
+
+text selection stops working when mouse goes outside of window, doesnt get left key up event? maybe just do mouseup event when cursor leaves window
+
+if you select a line from the 0th character and go upwards with the selection it highlights that space when it shouldnt?
+*/
+
+/*@todo actually check off this shit
+
+make cursor x last highest index
+
+shift tab to untab (make tab and untab work with text selection)
+
+sort out cursor positioning on undo/redo, especially for deleting selections
+    make default to put cursor at end of insertion?
+    
+auto indent and braces completion, insert second newline and indent after enter on brace ({[]})
+
+shift makes you highlight whenever you move the cursor in any way (shift down should assign to focused_editor->current_text_selection)
+
+other ctrl shortcut - undo,redo - search and replace should (optionally?) be able to work on all windows
+undo redo, whenever you insert text into the document push the action into some array and set index to top of array, when undo do
+opposite action of array[index] and decrement index, when pressing redo do action at array[index] and increment index
+
+ui and files (js port?) - if the ui is changed need to check the mouse position and change the system_cursor (hittest)
+
+ctrl arrows, ctrl shift arrows for selection (shared code with mouse selection and parsing, it goes to tokens)
+syntax highlighting & auto completion
+
+tbr - if line numbers render at greater than margin size clip them
+
+optimize paste and line insertion/removal (im sure rendering is the bottleneck)
+
+update root entity on window resize for each window instead of every frame
+
+inside draw function check if in bounds before drawing
+
+convert empty parenthesis to (void)
+
+turn on Wall, get compiling on linux, general testing
+
+? use my own fullscreen instead of sdl so it doesnt minimize when I click away
+
+? change to use sdl_textinputevent? it might be wonky, its a pretty big abstraction
+
+*done* fix camera so if you are below the window you can still move the cursor up, same with left/right
+*done* mouse scroll
+*done* ctrl key disabled regular key entry because it is used for ctrl commands e.g. ctrl c (USE CLIPBOARD)
+*done* move camera on cursor pose
+*done* make camera move when selection and going beyond end of screen (so it functions like vscode)
+*done* mouse place cursor and selection
+*done* home, delete, end
+*done* arbitrary number of windows, handle opening and closing and removing renderers to those windows
+*done* end process once all windows are closed
+
+@perf
+dirty
+sort renderers by renderer type
+profile to find bottlenecks
+optimize osal functions
+
+@notes
+
+move all editor-stateful variables from main to editor
+
+designed to only have one font rendering in an editor
+
+*/
+
+/*??? future project after writing parser generator and C parser, .otc files that get compiled to .c (c code that is as portable as possible)
+
+write tool to:
+
+templates on structs and functions using 
+"@template type
+struct 
+{
+    type varname;
+}"
+notation (@ sign will be a signal to identify OT preprocessor code)
+
+can mark public on structs (they will be in header file), they are private by default (defined in c file)
+
+generate header files, also copies comments to header file, possibly can also autogenerate documentation
+
+generate getters/setters
+
+prefix all functions in system with system name (or namespaces)
+
+methods on structs, always static (unless doing inheritance also then theres some crazy magic and shit)
+can declare method for a struct even when its not defined (takes a pointer and it is defined elsewhere)
+
+move variables declarations to top of scope and initialize them after (if they are initialized),
+cast all void*,
+other changes to make the code compatible with as many C/C++ compilers as possible
+
+remove necessity to type typedef on structs (add the typdefs)
+ 
+format code
+
+eventually make it a general linter (detect buffer overflows, integer overflows, etc.)
+
+possibly anonymous functions and structs (this would be tricky.. might not be worth it anyway, and then you need auto?)
+
+possibly inheritance
+
+possibly overloading
+
+possibly custom operators
+*/
