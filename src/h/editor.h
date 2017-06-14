@@ -1,25 +1,10 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
+#include "base.h"
 #include "action.h"
+#include "text_selection.h"
 #include "../../../OTG/src/h/OTG.h"
-
-typedef struct text_selection
-{
-    image_renderer *ir;
-    entity **text_selection_entities;
-    u32 text_selection_entities_size;
-} text_selection;
-
-
-typedef struct keystate_interpreter_info
-{
-    bool shift_pressed;
-    bool alt_pressed;//?
-    bool ctrl_pressed;
-    s64 *pressed_keys;
-    u32 pressed_keys_size;
-} keystate_interpreter_info;
 
 typedef struct editor
 {
@@ -68,8 +53,6 @@ void dtor_editor(editor *e);
 void update_editor(editor *e);
 void render_editor(editor *e);
 
-text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, editor *focused_editor);
-void dtor_text_selection(text_selection *s);
 /*
 if you pass the end of one line and the beginning of the next line it concats them
 

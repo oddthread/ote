@@ -1,3 +1,6 @@
+#ifndef BASE_H
+#define BASE_H
+
 #include "../../../OSAL/src/h/util.h"
 #include <stdio.h>
 
@@ -15,3 +18,15 @@ void ote_log(char *text,u32 type);
 extern char const *global_font_url;
 extern u32 global_font_size;
 extern s32 global_text_margin;/*if 0 line numbers wont render*/
+
+
+typedef struct keystate_interpreter_info
+{
+    bool shift_pressed;
+    bool alt_pressed;//?
+    bool ctrl_pressed;
+    s64 *pressed_keys;
+    u32 pressed_keys_size;
+} keystate_interpreter_info;
+
+#endif
