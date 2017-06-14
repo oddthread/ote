@@ -36,6 +36,9 @@ int main()
     }
     
     EXIT_LABEL:
+    
     sprintf(ote_log_buffer,"exit_code: %d\n",exit_code);
     ote_log(ote_log_buffer,LOG_TYPE_OTE);
+    
+    return exit_code;
 }
