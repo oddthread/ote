@@ -1,3 +1,15 @@
+/*
+
+@notes
+
+doing some optimizations e.g. changing the text storing data structure before writing future code (e.g. remote editing) might save time (unless it can all be done through some shared code)
+
+move all editor-stateful variables from main to editor
+
+designed to only have one font rendering in an editor
+
+
+*/
 
 /*@bugs
 text selection wasnt deleted when using the delete key
@@ -68,12 +80,6 @@ dirty
 sort renderers by renderer type
 profile to find bottlenecks
 optimize osal functions
-
-@notes
-
-move all editor-stateful variables from main to editor
-
-designed to only have one font rendering in an editor
 
 */
 
