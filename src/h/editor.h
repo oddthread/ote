@@ -10,7 +10,8 @@ typedef struct editor
 {
     keystate_interpreter_info keystate;
     
-    bool start_selection;
+    bool start_selection_mouse;
+    bool start_selection_key;
     bool wheel_override;
 
     action **action_list;
@@ -24,7 +25,7 @@ typedef struct editor
     color font_color;
     bool is_fullscreen;
     char **lines;
-    u32 lines_size;
+    s32 lines_size;
     text_block_renderer *tbr;
     window *win;
     entity *root;
@@ -44,9 +45,10 @@ typedef struct editor
     s64 held_key;
     s64 held_key_time_stamp;
     vec2 offset;
+    
 } editor;
 
-void editor_set_cursor_position(editor *e, u32 x, u32 y);
+void editor_set_cursor_position(editor *e, s32 x, s32 y);
 editor *ctor_editor();
 void dtor_editor(editor *e);
 

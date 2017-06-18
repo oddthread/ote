@@ -4,9 +4,49 @@
 #include "../../../OSAL/src/h/util.h"
 #include "../../../OSAL/src/h/input.h"
 
-void editor_set_cursor_position(editor *e, u32 x, u32 y)
+//@TODO move checks in here, rather than doing them outside also
+void editor_set_cursor_position(editor *e, s32 x, s32 y)
 {
-    u32 i;
+
+    //@todo modify current text selection if it exists
+    //printf("%d,%d,\n",x,y);
+    if(y>=e->lines_size)
+    {
+        y=e->lines_size-1;
+    }
+    else if(y<0)
+    {
+        y=0;
+    }
+    else if(x>strlen(e->lines[y]))
+    {
+        x=strlen(e->lines[y]);
+    }
+    else if(x<0)
+    {
+        x=0;
+    }
+    if(e->current_text_selection)
+    {
+        dtor_text_selection(e);        
+        
+        vec2 new_selection=value_vec2(x,y);
+        vec2 pos=e->text_selection_origin;
+        //printf("ENTRY: new_selection: (%d,%d), pos: (%d,%d)\n",(int)new_selection.x,(int)new_selection.y,(int)pos.x,(int)pos.y);
+        if((new_selection.y<e->text_selection_origin.y) || (e->text_selection_origin.y==new_selection.y && e->text_selection_origin.x > new_selection.x))
+        {
+            vec2 temp=new_selection;
+            new_selection=pos;
+            pos=temp;
+        }
+
+        //printf("AFTER: new_selection: (%d,%d), pos: (%d,%d)\n\n",(int)new_selection.x,(int)new_selection.y,(int)pos.x,(int)pos.y);
+        e->current_text_selection=ctor_text_selection(pos, new_selection, e);
+        
+        e->text_selection_end=value_vec2(x,y);
+    }            
+    
+    s32 i;
     e->cursor_x=x;
     e->cursor_y=y;
 
@@ -53,7 +93,6 @@ editor *ctor_editor()
     e->offset=value_vec2(0,0);
     
     e->wheel_override=false;
-    e->start_selection=false;
     e->current_text_selection=NULL;
     e->text_selection_origin.x=0;
     e->text_selection_origin.y=0;
@@ -92,6 +131,9 @@ editor *ctor_editor()
     e->tbr=r;
     entity_add_renderer(e->text_entity,(renderer*)r);
 
+    e->start_selection_mouse=false;
+    e->start_selection_key=false;
+    
     flush_events(MOUSE_EVENTS);
     return e;
 }
@@ -101,7 +143,8 @@ void dtor_editor(editor *e)
     dtor_entity(e->root);/*@todo implement this function and it should free all children*/
     for(u32 i=0; i<e->action_list_size; i++)
     {
-        dtor_action(e->action_list[i]);
+        /*also this shit is getting double freed or invalid pointer or something... shows in valgrind*/
+        /*@bug @todo @leak dtor_action(e->action_list[i]);*/
     }
     free(e->action_list);
     /*@todo @bug @leak how to handle freeing of lines? does closing an editor free the lines? do they have their own copy?*/
@@ -288,9 +331,9 @@ void add_text(editor *focused_editor, char *clip, bool do_add_action)
     if(focused_editor->current_text_selection)
     {
         delete_text(focused_editor->text_selection_origin, focused_editor->text_selection_end, focused_editor,false,ACTION_DELETE);
-        dtor_text_selection(focused_editor->current_text_selection);
+        dtor_text_selection(focused_editor);
         focused_editor->current_text_selection=NULL;
-        focused_editor->start_selection=false;
+        focused_editor->start_selection_mouse=false;
     }
 
     u32 clip_index=0;

@@ -29,6 +29,8 @@ if you select a line from the 0th character and go upwards with the selection it
 
 /*@todo actually check off this shit
 
+run valgrind and fix all the crap
+
 make cursor x last highest index
 
 shift tab to untab (make tab and untab work with text selection)

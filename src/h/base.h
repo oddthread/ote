@@ -13,6 +13,11 @@ extern bool log_type_enabled[3];
 
 extern s32 const EXIT_CODE_ALL_WINDOWS_CLOSED;
 
+extern bool const AUTO_CURLY_BRACE;
+extern bool const AUTO_INDENT;
+
+extern s32 const LINES_ON_PAGE_DOWNUP;
+
 void ote_log(char *text,u32 type);
 
 extern char const *global_font_url;

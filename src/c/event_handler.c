@@ -3,6 +3,8 @@
 #include "../h/event_handler.h"
 #include "../h/base.h"
 
+#define GSF gs->focused_editor
+
 global_state *ctor_global_state()
 {
     init_graphics();
@@ -10,6 +12,7 @@ global_state *ctor_global_state()
     
     global_state *gs=malloc(sizeof(global_state));
     gs->e.id=0;
+    gs->e.pressed=0;
 
     gs->editors_size=1;
     gs->editors=(editor**)malloc(sizeof(editor*)*gs->editors_size);
@@ -27,42 +30,43 @@ global_state *ctor_global_state()
     return gs;
 }
 
-s32 handle_event(global_state *gs)
+s32 indentation_level_spaces(editor *e, s32 line)
 {
-    s32 caps_lock_toggled=get_mod_state() & KEY_MOD_CAPS; 
+    if(line<0)
+    {
+        return 0;
+    }
+    
+    s32 retval=0;
+    s32 i=0;
+    s32 strlen_line=strlen(e->lines[line]);
+    for(;i<strlen_line; i++)
+    {
+        if(e->lines[line][i]!=' ')
+        {
+            break;
+        }
+        else
+        {
+            retval++;
+        }
+    }
+    return retval;
+}
 
+s32 handle_event_window(global_state *gs)
+{
     if(gs->e.id)
     {/*do window specific operations*/
         if(gs->e.type==MOUSE_MOTION)
         {
             gs->mouse_position.x=gs->e.mouse_info.x;
             gs->mouse_position.y=gs->e.mouse_info.y;
-            if(gs->focused_editor->start_selection)
-            {
-                if(gs->focused_editor->current_text_selection)
-                {
-                    dtor_text_selection(gs->focused_editor->current_text_selection);        
-                }
             
+            if(gs->focused_editor->start_selection_mouse)
+            {
                 vec2 new_selection=position_to_cursor(vec2_sub(gs->mouse_position,gs->focused_editor->offset), gs->focused_editor);
-                vec2 pos=gs->focused_editor->text_selection_origin;
-
-                vec2 actual_new_selection=new_selection;
-
-                if((new_selection.y<gs->focused_editor->text_selection_origin.y) || (gs->focused_editor->text_selection_origin.y==new_selection.y && gs->focused_editor->text_selection_origin.x > new_selection.x))
-                {
-                    vec2 temp=new_selection;
-                    new_selection=pos;
-                    pos=temp;
-                    actual_new_selection=temp;
-                }
-
-                if(new_selection.x)
-                {
-                    new_selection.x-=1;
-                }
-                gs->focused_editor->current_text_selection=ctor_text_selection(pos, new_selection, gs->focused_editor);
-                editor_set_cursor_position(gs->focused_editor, actual_new_selection.x, actual_new_selection.y);
+                editor_set_cursor_position(gs->focused_editor, new_selection.x, new_selection.y);
             }
         }
         if(gs->e.type==MOUSE_WHEEL)
@@ -75,28 +79,28 @@ s32 handle_event(global_state *gs)
         {
             if(gs->focused_editor->current_text_selection)
             {
-                dtor_text_selection(gs->focused_editor->current_text_selection);
-                gs->focused_editor->current_text_selection=NULL;
+                dtor_text_selection(gs->focused_editor);
             }
+            
+            /*
+                MUST RESET TEXT_SELECTION_ORIGIN AND END BEFORE CALL TO SET_CURSOR_POSITION BECAUSE:
+            IT WILL USE THAT TO CTOR THE NEXT TEXT_SELECTION ZZZ
+            */
             vec2 cursor_position=position_to_cursor(vec2_sub(gs->mouse_position,gs->focused_editor->offset),gs->focused_editor);
-
+            gs->focused_editor->text_selection_origin=cursor_position;
+            gs->focused_editor->text_selection_end=cursor_position;
+            
+            gs->focused_editor->current_text_selection=ctor_text_selection(gs->mouse_position,gs->mouse_position,gs->focused_editor);
+            
             editor_set_cursor_position(gs->focused_editor, cursor_position.x, cursor_position.y);
 
-            gs->focused_editor->text_selection_origin=cursor_position;
 
-            gs->focused_editor->start_selection=true;
+            gs->focused_editor->start_selection_mouse=true;
+            gs->focused_editor->start_selection_key=false;
         }
         if(gs->e.type==LEFT_MOUSE && !gs->e.pressed)
         {
-            /*
-            if(current_text_selection)
-            {
-                dtor_text_selection(current_text_selection);
-                current_text_selection=NULL;
-            }
-            */
-            gs->focused_editor->start_selection=false;
-            gs->focused_editor->text_selection_end=position_to_cursor(vec2_sub(gs->mouse_position,gs->focused_editor->offset),gs->focused_editor);
+            gs->focused_editor->start_selection_mouse=false;
         }
 
         if(gs->e.type==WINDOW_CLOSE)
@@ -141,75 +145,97 @@ s32 handle_event(global_state *gs)
             //gs->focused_editor=editors[e.id-1];//@todo do lookup on editors, because id can change and wont just index into array cleanly
         }                
     }
-
-    /*@BUG IF RANDOMLY DONT GET KEYS ITS PROBABLY BECAUSE THIS E.TYPE CHECK*/
-    if(gs->focused_editor && gs->e.type)
-    {//keystroke to text interpreter
-        bool key_is_already_pressed=false;
-        u32 i;
-        for(i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
+    return 0;
+}
+bool handle_keys(global_state *gs)
+{
+    bool key_is_already_pressed=false;
+    u32 i;
+    for(i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
+    {
+        if(gs->focused_editor->keystate.pressed_keys[i]==gs->e.type)
         {
-            if(gs->focused_editor->keystate.pressed_keys[i]==gs->e.type)
+            key_is_already_pressed=true;
+            break;
+        }
+    }
+    
+    bool repeat_key=false;
+    if(key_is_already_pressed && gs->e.pressed)
+    {
+        if(gs->focused_editor->held_key==gs->e.type)
+        {
+            if(milli_current_time() - gs->focused_editor->held_key_time_stamp > 500)
             {
-                key_is_already_pressed=true;
+                repeat_key=true;
+            }
+        }
+    }
+
+    if(key_is_already_pressed && !gs->e.pressed)
+    {
+        /*start with index from previous for loop to remove unpressed key*/
+        for(;i<gs->focused_editor->keystate.pressed_keys_size-1; i++)
+        {
+            gs->focused_editor->keystate.pressed_keys[i]=gs->focused_editor->keystate.pressed_keys[i+1];
+        }
+        gs->focused_editor->keystate.pressed_keys_size-=1;
+        gs->focused_editor->keystate.pressed_keys=(s64*)realloc(gs->focused_editor->keystate.pressed_keys,sizeof(s64)*(gs->focused_editor->keystate.pressed_keys_size));
+        gs->focused_editor->held_key=0;
+    }
+    
+    if((!key_is_already_pressed && gs->e.pressed) ||  repeat_key)
+    {
+        if((!key_is_already_pressed && gs->e.pressed))
+        {
+            /*@todo add other keys that I don't want to be held down to this condition*/
+            if(gs->e.type != KEY_CAPS_LOCK && gs->e.type != KEY_F11)
+            {
+                gs->focused_editor->held_key_time_stamp=milli_current_time();
+                gs->focused_editor->held_key=gs->e.type;
+            }
+            
+            gs->focused_editor->keystate.pressed_keys_size+=1;
+            gs->focused_editor->keystate.pressed_keys=realloc(gs->focused_editor->keystate.pressed_keys,sizeof(s64)*(gs->focused_editor->keystate.pressed_keys_size));
+            gs->focused_editor->keystate.pressed_keys[gs->focused_editor->keystate.pressed_keys_size-1]=gs->e.type;
+        }
+        if(gs->e.type != gs->focused_editor->held_key)
+        {
+            gs->focused_editor->held_key=0;
+        }
+            
+        gs->focused_editor->keystate.ctrl_pressed=false;
+        for(u32 i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
+        {
+            if(gs->focused_editor->keystate.pressed_keys[i]==KEY_LEFT_CONTROL || gs->focused_editor->keystate.pressed_keys[i]==KEY_RIGHT_CONTROL)
+            {
+                gs->focused_editor->keystate.ctrl_pressed=true;
                 break;
             }
         }
         
-        bool repeat_key=false;
-        if(key_is_already_pressed && gs->e.pressed)
-        {
-            if(gs->focused_editor->held_key==gs->e.type)
-            {
-                if(milli_current_time() - gs->focused_editor->held_key_time_stamp > 500)
-                {
-                    repeat_key=true;
-                }
-            }
-        }
+        return true;
+    }
+    
+    return false;
+}
 
-        if(key_is_already_pressed && !gs->e.pressed)
-        {
-            /*start with index from previous for loop to remove unpressed key*/
-            for(;i<gs->focused_editor->keystate.pressed_keys_size-1; i++)
-            {
-                gs->focused_editor->keystate.pressed_keys[i]=gs->focused_editor->keystate.pressed_keys[i+1];
-            }
-            gs->focused_editor->keystate.pressed_keys_size-=1;
-            gs->focused_editor->keystate.pressed_keys=(s64*)realloc(gs->focused_editor->keystate.pressed_keys,sizeof(s64)*(gs->focused_editor->keystate.pressed_keys_size));
-            gs->focused_editor->held_key=0;
-        }
+#define M_DELETE_SELECTION delete_text(gs->focused_editor->text_selection_origin,gs->focused_editor->text_selection_end, gs->focused_editor, true, ACTION_DELETE);\
+dtor_text_selection(gs->focused_editor);\
+gs->focused_editor->current_text_selection=NULL;\
+gs->focused_editor->start_selection_mouse=false;
 
-        if((!key_is_already_pressed && gs->e.pressed) ||  repeat_key)
+s32 handle_event(global_state *gs)
+{
+    s32 exit_code=handle_event_window(gs);
+    
+    /*@BUG IF RANDOMLY DONT GET KEYS ITS PROBABLY BECAUSE THIS E.TYPE CHECK*/
+    if(gs->focused_editor && gs->e.type)
+    {//keystroke to text interpreter
+        
+        
+        if(handle_keys(gs))
         {
-            if((!key_is_already_pressed && gs->e.pressed))
-            {
-                /*@todo add other keys that I don't want to be held down to this condition*/
-                if(gs->e.type != KEY_CAPS_LOCK && gs->e.type != KEY_F11)
-                {
-                    gs->focused_editor->held_key_time_stamp=milli_current_time();
-                    gs->focused_editor->held_key=gs->e.type;
-                }
-                
-                gs->focused_editor->keystate.pressed_keys_size+=1;
-                gs->focused_editor->keystate.pressed_keys=realloc(gs->focused_editor->keystate.pressed_keys,sizeof(s64)*(gs->focused_editor->keystate.pressed_keys_size));
-                gs->focused_editor->keystate.pressed_keys[gs->focused_editor->keystate.pressed_keys_size-1]=gs->e.type;
-            }
-            
-            if(gs->e.type != gs->focused_editor->held_key)
-            {
-                gs->focused_editor->held_key=0;
-            }
-                
-            gs->focused_editor->keystate.ctrl_pressed=false;
-            for(u32 i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
-            {
-                if(gs->focused_editor->keystate.pressed_keys[i]==KEY_LEFT_CONTROL || gs->focused_editor->keystate.pressed_keys[i]==KEY_RIGHT_CONTROL)
-                {
-                    gs->focused_editor->keystate.ctrl_pressed=true;
-                    break;
-                }
-            }
             /*ACTUAL KEY HANDLING STARTS HERE*/
             if(gs->focused_editor->keystate.ctrl_pressed)
             {
@@ -294,23 +320,17 @@ s32 handle_event(global_state *gs)
                     if(gs->focused_editor->current_text_selection)
                     {
                         set_clipboard_text(get_text(gs->focused_editor->text_selection_origin,gs->focused_editor->text_selection_end,gs->focused_editor));
-                        delete_text(gs->focused_editor->text_selection_origin,gs->focused_editor->text_selection_end, gs->focused_editor, true, ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
+                        M_DELETE_SELECTION
                     }
                 }
             }
-            else
+            else/*NON CONTROL KEY HANDLING, TEXT SELECTION DELETING KEYS*/
             {
                 if(gs->e.type==KEY_DELETE)
                 {
                     if(gs->focused_editor->current_text_selection)
                     {
-                        delete_text(gs->focused_editor->text_selection_origin, gs->focused_editor->text_selection_end, gs->focused_editor, true, ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
+                        M_DELETE_SELECTION
                     }
                     else
                     {
@@ -335,211 +355,37 @@ s32 handle_event(global_state *gs)
                         {
                             delete_text(begin,end,gs->focused_editor,true,ACTION_DELETE);
                         }
-                        /*
-                        if(gs->focused_editor->cursor_x<strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y]))
-                        {
-                            char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                            gs->focused_editor->lines[gs->focused_editor->cursor_y]=str_remove(curline,gs->focused_editor->cursor_x);
-                            
-                            text_block_renderer_set_text(gs->focused_editor->tbr,gs->focused_editor->lines,gs->focused_editor->lines_size,gs->focused_editor->font_color,NULL);
-                        }
-                        else if(gs->focused_editor->cursor_y<gs->focused_editor->lines_size-1)
-                        {
-                            u32 i=0;
-                            char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                            char *nextline=gs->focused_editor->lines[gs->focused_editor->cursor_y+1];
-                            u32 strlen_nextline=strlen(nextline);
-                            gs->focused_editor->lines[gs->focused_editor->cursor_y]=str_cat(curline,nextline);
-                            
-                            for(i=gs->focused_editor->cursor_y+1; i<gs->focused_editor->lines_size-1; i++)
-                            {
-                                gs->focused_editor->lines[i]=gs->focused_editor->lines[i+1];
-                            }
-
-                            gs->focused_editor->lines_size-=1;
-
-                            gs->focused_editor->lines=realloc(gs->focused_editor->lines,gs->focused_editor->lines_size*sizeof(char*));
-                            
-                            text_block_renderer_set_text(gs->focused_editor->tbr,gs->focused_editor->lines,gs->focused_editor->lines_size,gs->focused_editor->font_color,NULL);
-                            
-                            free(curline);
-                            free(nextline);
-                        }
-                        */
                     }
                 }
-                if(gs->e.type==KEY_END)
+                else if(gs->e.type==KEY_ENTER)
                 {
-                    
                     if(gs->focused_editor->current_text_selection)
                     {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
+                        M_DELETE_SELECTION
                     }
                     
-                    char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                    u32 last_character=0;
-                    for(u32 i=gs->focused_editor->cursor_x; i<strlen(curline); i++)
+                    char *indent_str=strcpy(malloc(2),"\n");
+                    if(AUTO_INDENT)
                     {
-                        if(curline[i]!=' ')
-                        {
-                            last_character=i+1;
+                        s32 indent_str_size=2;
+                        u32 i;
+                        s32 x=indentation_level_spaces(gs->focused_editor,gs->focused_editor->cursor_y);
+                        for(i=0;i<x;i++)
+                        {                            
+                            indent_str_size+=1;
+                            indent_str=realloc(indent_str,indent_str_size);
+                            indent_str[indent_str_size-2]=' ';
                         }
-                    }   
-
-                    if(!last_character)
-                    {
-                        last_character=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y]);
-                    }
-
-                    editor_set_cursor_position(gs->focused_editor, last_character, gs->focused_editor->cursor_y);
-                }
-                if(gs->e.type==KEY_HOME)
-                {
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-                    char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                    u32 last_character=0;
-
-                    if(strlen(curline))
-                    {
-                        for(s32 i=gs->focused_editor->cursor_x-1; i>=0; i--)
-                        {
-                            if(curline[i] != ' ')
-                            {
-                                last_character=i;
-                            }
-                        }
-                    }
-
-                    editor_set_cursor_position(gs->focused_editor, last_character, gs->focused_editor->cursor_y);
-                }
-                if(gs->e.type==KEY_TAB)
-                {
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        delete_text(gs->focused_editor->text_selection_origin, gs->focused_editor->text_selection_end,gs->focused_editor,true,ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
                         
-                        gs->focused_editor->start_selection=false;
-                    }
-                    char *str=strcpy(malloc(5),"    ");
-                    add_text(gs->focused_editor, str,true);
+                        indent_str[indent_str_size-1]=0;
+                    }                    
+                    add_text(gs->focused_editor, indent_str, true);                            
                 }
-                if(gs->e.type==KEY_F11)
-                {
-                    gs->focused_editor->is_fullscreen=!gs->focused_editor->is_fullscreen;
-                    window_toggle_fullscreen(gs->focused_editor->win,gs->focused_editor->is_fullscreen);
-                }
-                if(gs->e.type >=KEY_SPACE && gs->e.type <= KEY_Z)
+                else if(gs->e.type==KEY_BACKSPACE)
                 {
                     if(gs->focused_editor->current_text_selection)
                     {
-                        delete_text(gs->focused_editor->text_selection_origin, gs->focused_editor->text_selection_end,gs->focused_editor,true,ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-
-                    char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                    char char_to_insert=gs->e.type;
-                    
-                    gs->focused_editor->keystate.shift_pressed=false;
-                    for(u32 i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
-                    {
-                        if(gs->focused_editor->keystate.pressed_keys[i]==KEY_LEFT_SHIFT || gs->focused_editor->keystate.pressed_keys[i]==KEY_RIGHT_SHIFT)
-                        {
-                            gs->focused_editor->keystate.shift_pressed=true;
-                            break;
-                        }
-                    }
-                    
-                    if(gs->focused_editor->keystate.shift_pressed)
-                    {
-                        char_to_insert=apply_shift(char_to_insert, true);
-                    }
-                    else if(caps_lock_toggled)
-                    {
-                        char_to_insert=apply_shift(char_to_insert, false);
-                    }
-
-                    char *str=malloc(2);
-                    str[0]=char_to_insert;
-                    str[1]=0;
-                    add_text(gs->focused_editor,str,true); 
-                }
-                if(gs->e.type==KEY_LEFT_SHIFT||gs->e.type==KEY_RIGHT_SHIFT)
-                {
-                    /*prolly dont do anything in here since itll get called on heldkey wot
-                    also these keys get just checked in the array instead of changing state on press*/
-                }
-                if(gs->e.type==KEY_LEFT_CONTROL||gs->e.type==KEY_RIGHT_CONTROL)
-                {
-                    /*prolly dont do anything in here since itll get called on heldkey wot
-                    also these keys get just checked in the array instead of changing state on press*/
-                }
-                if(gs->e.type==KEY_LEFT_ALT||gs->e.type==KEY_RIGHT_ALT)
-                {
-                    /*prolly dont do anything in here since itll get called on heldkey wot
-                    also these keys get just checked in the array instead of changing state on press*/                            
-                }
-                if(gs->e.type==KEY_ENTER)
-                {
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        delete_text(gs->focused_editor->text_selection_origin, gs->focused_editor->text_selection_end,gs->focused_editor,true,ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-                    add_text(gs->focused_editor,strcpy(malloc(2),"\n"), true);
-                    /*
-                    u32 i;
-                    char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                    char *startsplice;
-                    char *endsplice;
-                    if(strlen(curline))
-                    {
-                        startsplice=malloc_str_slice(curline,0,gs->focused_editor->cursor_x-1);
-                        endsplice=malloc_str_slice(curline,gs->focused_editor->cursor_x,strlen(curline)-1);
-                        free(curline);
-                    }
-                    else
-                    {
-                        startsplice=malloc(1);
-                        startsplice[0]=(char)NULL;
-                        
-                        endsplice=malloc(1);
-                        endsplice[0]=(char)NULL;
-                    }
-                    
-                    gs->focused_editor->lines[gs->focused_editor->cursor_y]=startsplice;
-                    
-                    gs->focused_editor->lines_size+=1;
-                    gs->focused_editor->lines=realloc(gs->focused_editor->lines,gs->focused_editor->lines_size*sizeof(char*));
-                    for(i=gs->focused_editor->lines_size-1; i>gs->focused_editor->cursor_y+1; i--)
-                    {
-                        gs->focused_editor->lines[i]=gs->focused_editor->lines[i-1];
-                    }
-                    gs->focused_editor->lines[gs->focused_editor->cursor_y+1]=endsplice;
-                    text_block_renderer_set_text(gs->focused_editor->tbr,gs->focused_editor->lines,gs->focused_editor->lines_size,gs->focused_editor->font_color,NULL);
-                    editor_set_cursor_position(gs->focused_editor,0,gs->focused_editor->cursor_y+1);
-                    */                             
-                }
-                if(gs->e.type==KEY_BACKSPACE)
-                {
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        delete_text(gs->focused_editor->text_selection_origin, gs->focused_editor->text_selection_end,gs->focused_editor,true,ACTION_DELETE);
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
+                        M_DELETE_SELECTION
                     }
                     else
                     {
@@ -565,133 +411,247 @@ s32 handle_event(global_state *gs)
                             delete_text(begin,end,gs->focused_editor,true,ACTION_BACKSPACE);
                         }
                         
-                         /*
+                    }
+                }
+                else if(gs->e.type >=KEY_SPACE && gs->e.type <= KEY_Z)
+                {
+                    if(gs->focused_editor->current_text_selection)
+                    {
+                        M_DELETE_SELECTION
+                    }
+
+                    char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
+                    char char_to_insert=gs->e.type;
+                    
+                    gs->focused_editor->keystate.shift_pressed=false;
+                    for(u32 i=0; i<gs->focused_editor->keystate.pressed_keys_size; i++)
+                    {
+                        if(gs->focused_editor->keystate.pressed_keys[i]==KEY_LEFT_SHIFT || gs->focused_editor->keystate.pressed_keys[i]==KEY_RIGHT_SHIFT)
+                        {
+                            gs->focused_editor->keystate.shift_pressed=true;
+                            break;
+                        }
+                    }
+                    
+                    if(gs->focused_editor->keystate.shift_pressed)
+                    {
+                        char_to_insert=apply_shift(char_to_insert, true);
+                    }
+                    else if(get_mod_state() & KEY_MOD_CAPS)
+                    {
+                        char_to_insert=apply_shift(char_to_insert, false);
+                    }
+                    
+                    char *str=malloc(2);
+                    str[0]=char_to_insert;
+                    str[1]=0;
+                    add_text(gs->focused_editor,str,true); 
+                    free(str);
+                    
+                    if(AUTO_CURLY_BRACE)
+                    {
+                        if(char_to_insert=='{')
+                        {
+                            
+                            if(AUTO_INDENT)
+                            {
+                                s32 indent_str_size=1;
+                                char *indent_str=malloc(indent_str_size);
+                                indent_str[0]='\n';
+                                
+                                
+                                u32 i;
+                                s32 indent_level=indentation_level_spaces(gs->focused_editor,gs->focused_editor->cursor_y);
+                                s32 x=num_spaces_to_insert_on_tab+indent_level;
+                                for(i=0;i<x;i++)
+                                {                            
+                                    indent_str_size+=1;
+                                    indent_str=realloc(indent_str,indent_str_size);
+                                    indent_str[indent_str_size-1]=' ';
+                                }
+                                
+                                indent_str_size+=1;
+                                indent_str=realloc(indent_str,indent_str_size);                            
+                                indent_str[indent_str_size-1]='\n';
+                                
+                                for(i=0;i<indent_level;i++)
+                                {                            
+                                    indent_str_size+=1;
+                                    indent_str=realloc(indent_str,indent_str_size);
+                                    indent_str[indent_str_size-1]=' ';
+                                }
+                                
+                                indent_str_size+=2;
+                                indent_str=realloc(indent_str,indent_str_size);                            
+                                
+                                indent_str[indent_str_size-2]='}';
+                                indent_str[indent_str_size-1]=0;
+                                
+                                add_text(gs->focused_editor,indent_str,true);
+                                editor_set_cursor_position(GSF, strlen(GSF->lines[GSF->cursor_y-1]), GSF->cursor_y-1);
+                            }
+                            else
+                            {
+                                char *str=strcpy(malloc(2),"}");
+                                add_text(gs->focused_editor,str,true);
+                                editor_set_cursor_position(GSF, GSF->cursor_x-1, GSF->cursor_y);
+                            }
+                        }
+                    }
+                }
+                else /*TEXT_SELECTION CLOSING KEYS IF SHIFT ISNT PRESSED*/
+                {                    
+                    #define M_SHIFT_CHECK if(gs->focused_editor->current_text_selection && !(get_mod_state() & KEY_MOD_SHIFT))\
+                    {\
+                        dtor_text_selection(gs->focused_editor);\
+                        gs->focused_editor->current_text_selection=NULL;\
+                        gs->focused_editor->start_selection_mouse=false;\
+                        gs->focused_editor->start_selection_key=false;\
+                    }
+                    
+                    if(!gs->focused_editor->current_text_selection && (get_mod_state() & KEY_MOD_SHIFT))
+                    {
+                        if(gs->focused_editor->current_text_selection)
+                        {
+                            dtor_text_selection(gs->focused_editor);
+                        }
+                                   
+                        vec2 cpos=value_vec2(gs->focused_editor->cursor_x,gs->focused_editor->cursor_y);
+                        gs->focused_editor->text_selection_origin=cpos;
+                        gs->focused_editor->text_selection_end=cpos;             
+                        gs->focused_editor->current_text_selection=ctor_text_selection(cpos,cpos,gs->focused_editor);
+                        
+                        gs->focused_editor->start_selection_mouse=false;
+                        gs->focused_editor->start_selection_key=true;
+                    }
+                    
+                    if(gs->e.type==KEY_END)
+                    {
+                        M_SHIFT_CHECK
+                        
+                        char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
+                        u32 last_character=0;
+                        for(u32 i=gs->focused_editor->cursor_x; i<strlen(curline); i++)
+                        {
+                            if(curline[i]!=' ')
+                            {
+                                last_character=i+1;
+                            }
+                        }   
+
+                        if(!last_character)
+                        {
+                            last_character=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y]);
+                        }
+
+                        editor_set_cursor_position(gs->focused_editor, last_character, gs->focused_editor->cursor_y);
+                    }
+                    else if(gs->e.type==KEY_HOME)
+                    {
+                        M_SHIFT_CHECK
+                        char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
+                        u32 last_character=0;
+
+                        if(strlen(curline))
+                        {
+                            for(s32 i=gs->focused_editor->cursor_x-1; i>=0; i--)
+                            {
+                                if(curline[i] != ' ')
+                                {
+                                    last_character=i;
+                                }
+                            }
+                        }
+
+                        editor_set_cursor_position(gs->focused_editor, last_character, gs->focused_editor->cursor_y);
+                    }
+                    else if(gs->e.type==KEY_PAGE_DOWN)
+                    {      
+                        M_SHIFT_CHECK                  
+                        editor_set_cursor_position(gs->focused_editor, gs->focused_editor->cursor_x, gs->focused_editor->cursor_y+LINES_ON_PAGE_DOWNUP);
+                    }
+                    else if(gs->e.type==KEY_PAGE_UP)
+                    {
+                        M_SHIFT_CHECK
+                        editor_set_cursor_position(gs->focused_editor, gs->focused_editor->cursor_x, gs->focused_editor->cursor_y-LINES_ON_PAGE_DOWNUP);
+                    }                
+                    else if(gs->e.type==KEY_TAB)
+                    {
+                        M_SHIFT_CHECK
+                        if(gs->focused_editor->current_text_selection)
+                        {
+                            //@TODO
+                        }
+                        char *str=strcpy(malloc(5),"    ");
+                        add_text(gs->focused_editor, str,true);
+                    }
+                    else if(gs->e.type==KEY_F11)
+                    {
+                        M_SHIFT_CHECK
+                        gs->focused_editor->is_fullscreen=!gs->focused_editor->is_fullscreen;
+                        window_toggle_fullscreen(gs->focused_editor->win,gs->focused_editor->is_fullscreen);
+                    }
+                    else if(gs->e.type==KEY_LEFT)
+                    {
+                        M_SHIFT_CHECK
                         if(gs->focused_editor->cursor_x)
                         {
-                            char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                            gs->focused_editor->cursor_x-=1;
-                            gs->focused_editor->lines[gs->focused_editor->cursor_y]=str_remove(curline,gs->focused_editor->cursor_x);
-                            
-                            text_block_renderer_set_text(gs->focused_editor->tbr,gs->focused_editor->lines,gs->focused_editor->lines_size,gs->focused_editor->font_color,NULL);
-                            editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x,gs->focused_editor->cursor_y);
+                            editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x - 1, gs->focused_editor->cursor_y);
                         }
-                        else if(gs->focused_editor->cursor_y)
+                        else
                         {
-                            u32 i=0;
-                            char *curline=gs->focused_editor->lines[gs->focused_editor->cursor_y];
-                            char *prevline=gs->focused_editor->lines[gs->focused_editor->cursor_y-1];
-                            u32 strlen_prevline=strlen(prevline);
-                            gs->focused_editor->lines[gs->focused_editor->cursor_y-1]=str_cat(prevline,curline);
-                            
-                            for(i=gs->focused_editor->cursor_y; i<gs->focused_editor->lines_size-1; i++)
+                            if(gs->focused_editor->cursor_y>0)
                             {
-                                gs->focused_editor->lines[i]=gs->focused_editor->lines[i+1];
+                                u32 ypos=gs->focused_editor->cursor_y-1;
+                                editor_set_cursor_position(gs->focused_editor,strlen(gs->focused_editor->lines[ypos]), gs->focused_editor->cursor_y-1);
                             }
-
-                            gs->focused_editor->lines_size-=1;
-
-                            gs->focused_editor->lines=realloc(gs->focused_editor->lines,gs->focused_editor->lines_size*sizeof(char*));
-                            
-                            text_block_renderer_set_text(gs->focused_editor->tbr,gs->focused_editor->lines,gs->focused_editor->lines_size,gs->focused_editor->font_color,NULL);
-                            editor_set_cursor_position(gs->focused_editor,strlen_prevline,gs->focused_editor->cursor_y-1);
-                            
-                            free(curline);
-                            free(prevline);
                         }
-                        */
+                        
+                         
                     }
-                }
-                if(gs->e.type==KEY_CAPS_LOCK)
-                {
-                    /*we handle this differently now, but might want to do something if they actually click the key someday ? ?*/
-                }
-                if(gs->e.type==KEY_LEFT)
-                {
-                    if(gs->focused_editor->current_text_selection)
+                    else if(gs->e.type==KEY_RIGHT)
                     {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
+                        M_SHIFT_CHECK
+                        if(gs->focused_editor->cursor_x < strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y]))
+                        {
+                            editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x + 1, gs->focused_editor->cursor_y);
+                        }
+                        else
+                        {
+                            if(gs->focused_editor->cursor_y<gs->focused_editor->lines_size-1)
+                            {
+                                u32 ypos=gs->focused_editor->cursor_y+1;
+                                editor_set_cursor_position(gs->focused_editor,0, gs->focused_editor->cursor_y+1);
+                            }
+                        }                         
                     }
-                    if(gs->focused_editor->cursor_x)
+                    else if(gs->e.type==KEY_UP)
                     {
-                        editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x - 1, gs->focused_editor->cursor_y);
-                    }
-                    else
-                    {
+                        M_SHIFT_CHECK
                         if(gs->focused_editor->cursor_y>0)
                         {
-                            u32 ypos=gs->focused_editor->cursor_y-1;
-                            editor_set_cursor_position(gs->focused_editor,strlen(gs->focused_editor->lines[ypos]), gs->focused_editor->cursor_y-1);
+                            if(gs->focused_editor->cursor_x>=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y-1]))
+                            {
+                                gs->focused_editor->cursor_x=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y-1]);
+                            }
+                            editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x, gs->focused_editor->cursor_y - 1);
                         }
+                        
+                         
                     }
-                    
-                     
-                }
-                if(gs->e.type==KEY_RIGHT)
-                {
-                    
-                    if(gs->focused_editor->current_text_selection)
+                    else if(gs->e.type==KEY_DOWN)
                     {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-                    if(gs->focused_editor->cursor_x < strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y]))
-                    {
-                        editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x + 1, gs->focused_editor->cursor_y);
-                    }
-                    else
-                    {
+                        M_SHIFT_CHECK
                         if(gs->focused_editor->cursor_y<gs->focused_editor->lines_size-1)
                         {
-                            u32 ypos=gs->focused_editor->cursor_y+1;
-                            editor_set_cursor_position(gs->focused_editor,0, gs->focused_editor->cursor_y+1);
-                        }
+                            
+                            if(gs->focused_editor->cursor_x>=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y+1]))
+                            {
+                                gs->focused_editor->cursor_x=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y+1]);
+                            }
+                            editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x, gs->focused_editor->cursor_y + 1);
+                        }                         
                     }
-
-                     
-                }
-                if(gs->e.type==KEY_UP)
-                {
-                    
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-                    if(gs->focused_editor->cursor_y>0)
-                    {
-                        if(gs->focused_editor->cursor_x>=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y-1]))
-                        {
-                            gs->focused_editor->cursor_x=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y-1]);
-                        }
-                        editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x, gs->focused_editor->cursor_y - 1);
-                    }
-                    
-                     
-                }
-                if(gs->e.type==KEY_DOWN)
-                {
-                    
-                    if(gs->focused_editor->current_text_selection)
-                    {
-                        dtor_text_selection(gs->focused_editor->current_text_selection);
-                        gs->focused_editor->current_text_selection=NULL;
-                        gs->focused_editor->start_selection=false;
-                    }
-                    if(gs->focused_editor->cursor_y<gs->focused_editor->lines_size-1)
-                    {
-                        
-                        if(gs->focused_editor->cursor_x>=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y+1]))
-                        {
-                            gs->focused_editor->cursor_x=strlen(gs->focused_editor->lines[gs->focused_editor->cursor_y+1]);
-                        }
-                        editor_set_cursor_position(gs->focused_editor,gs->focused_editor->cursor_x, gs->focused_editor->cursor_y + 1);
-                    }
-                    
-                     
                 }
             }
             
@@ -700,5 +660,5 @@ s32 handle_event(global_state *gs)
             gs->focused_editor->cursor_blink_timer=0;
         }
     }         
-    return 0;  
+    return exit_code;  
 }

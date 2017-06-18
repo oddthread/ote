@@ -14,7 +14,8 @@ int main()
 
         while(poll_input(&gs->e))
         {
-            if(exit_code=handle_event(gs))
+            exit_code=handle_event(gs);
+            if(exit_code)
             {
                 goto EXIT_LABEL;
             }

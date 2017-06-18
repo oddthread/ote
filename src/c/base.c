@@ -7,9 +7,15 @@ char ote_log_buffer[100];
 u32 const LOG_TYPE_ACTION=0;
 u32 const LOG_TYPE_STRINGS=1;
 u32 const LOG_TYPE_OTE=2;
-bool log_type_enabled[3]={false,false,true};
+bool log_type_enabled[3]={false,false,false};
 
 s32 const EXIT_CODE_ALL_WINDOWS_CLOSED=-1;
+
+bool const AUTO_CURLY_BRACE=true;
+bool const AUTO_INDENT=true;
+
+s32 const LINES_ON_PAGE_DOWNUP=10;
+
 
 void ote_log(char *text,u32 type)
 {
