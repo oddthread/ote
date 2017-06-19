@@ -6,6 +6,14 @@
 #include "text_selection.h"
 #include "../../../OTG/src/h/OTG.h"
 
+typedef struct page_tab
+{
+    entity *ent;
+    texture *tex;
+    char *file_path;//if NULL working with a new buffer
+} page_tab;
+page_tab *ctor_page_tab(editor *e);
+
 typedef struct editor
 {
     keystate_interpreter_info keystate;
@@ -13,7 +21,9 @@ typedef struct editor
     bool start_selection_mouse;
     bool start_selection_key;
     bool wheel_override;
-
+    
+    entity *highest;
+    
     action **action_list;
     s32 action_list_size;
     s32 action_list_index;
@@ -46,6 +56,8 @@ typedef struct editor
     s64 held_key_time_stamp;
     vec2 offset;
     
+    page_tab **page_tabs;
+    s32 page_tabs_size;
 } editor;
 
 void editor_set_cursor_position(editor *e, s32 x, s32 y);

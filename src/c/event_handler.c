@@ -60,18 +60,59 @@ s32 handle_event_window(global_state *gs)
     {/*do window specific operations*/
         if(gs->e.type==MOUSE_MOTION)
         {
+            s32 i;
+            bool hit=false;
+            entity *highest=hit_test_recursive(gs->mouse_position,gs->focused_editor->root,gs->focused_editor->root);
+            for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+            {
+                if(highest==gs->focused_editor->page_tabs[i]->ent)
+                {
+                    texture_set_alpha(gs->focused_editor->page_tabs[i]->tex,255);
+                    set_cursor(CURSOR_NORMAL);
+                    hit=true;
+                }
+                else
+                {
+                    texture_set_alpha(gs->focused_editor->page_tabs[i]->tex,150);
+                }
+            }
+            if(!hit)set_cursor(CURSOR_TEXT);
+            gs->focused_editor->highest=highest;
+    
             gs->mouse_position.x=gs->e.mouse_info.x;
             gs->mouse_position.y=gs->e.mouse_info.y;
             
+            
+            if(gs->mouse_position.x<=global_text_margin)
+            {
+                for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                {
+                    entity_set_visible(gs->focused_editor->page_tabs[i]->ent,true);
+                }                
+            }
+            if(gs->mouse_position.x>entity_get_render_size(gs->focused_editor->page_tabs[0]->ent).x)
+            {
+                for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                {
+                    entity_set_visible(gs->focused_editor->page_tabs[i]->ent,false);
+                }                
+            }
+                        
             if(gs->focused_editor->start_selection_mouse)
             {
                 vec2 new_selection=position_to_cursor(vec2_sub(gs->mouse_position,gs->focused_editor->offset), gs->focused_editor);
                 editor_set_cursor_position(gs->focused_editor, new_selection.x, new_selection.y);
             }
         }
+        
+        if(gs->focused_editor->highest!=gs->focused_editor->root)
+        {
+            return 0;
+        }
+        
         if(gs->e.type==MOUSE_WHEEL)
         {
-            gs->focused_editor->offset.y-=gs->e.mouse_info.y*(entity_get_render_size(gs->focused_editor->cursor).y);
+            gs->focused_editor->offset.y-=gs->e.mouse_info.y*(entity_get_render_size(gs->focused_editor->cursor).y)*5;
             gs->focused_editor->wheel_override=true;
         }
         /*@bug sometimes the cursor changes row but doesnt change column*/

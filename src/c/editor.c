@@ -4,6 +4,16 @@
 #include "../../../OSAL/src/h/util.h"
 #include "../../../OSAL/src/h/input.h"
 
+/*
+    for find and replace:
+    can spawn a top-borderless(OS border) EDITOR small window with modified handle_event with a red outline or something where typing the name searches in its associated real editor
+    and hitting enter navigates to the next instance
+    hitting escape closes it
+    
+    for go to line:
+    same as previous except hitting enter just navigates to the line in the associated real editor and closes the box and it does nothing while typing.
+*/
+
 //@TODO move checks in here, rather than doing them outside also
 void editor_set_cursor_position(editor *e, s32 x, s32 y)
 {
@@ -72,15 +82,47 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
         free(spliced_str);
     }
 }
+page_tab *ctor_page_tab(editor *e)
+{    
+    page_tab *p=malloc(sizeof(page_tab));
+    u32 i;
+    entity *button_holder=ctor_entity(e->root);
+    p->ent=button_holder;
+    
+    p->file_path=NULL;//might be parameter
+    
+    entity_set_relsize(button_holder,value_vec2(.2,.05));
+    
+    entity_set_relposme(button_holder,value_vec2(0,e->page_tabs_size));
+    entity_set_position(button_holder,value_vec2(0,5*e->page_tabs_size));
+    
+    entity_set_order(button_holder,999);
+    texture *top_white_texture=ctor_texture(e->win,"res/cursor.png");
+    p->tex=top_white_texture;
+    texture_set_alpha(top_white_texture,150);
+    entity_add_renderer(button_holder,(renderer*)ctor_image_renderer(e->win,top_white_texture));
+    
+    M_APPEND(e->page_tabs,e->page_tabs_size,p);
+    
+    return p;
+}
+void dtor_page_tab(page_tab *p)
+{
+//@todo
+}
+
 editor *ctor_editor()
 {
     editor *e=(editor*)malloc(sizeof(editor));
     e->win=ctor_window("Odd Thread Editor", 1000, 1000);
     e->root=ctor_entity(NULL);
     e->text_holder=ctor_entity(e->root);
+    entity_set_solid(e->text_holder,false);
     entity_set_relsize(e->text_holder, value_vec2(1,1));
-    //entity_set_relpos(e->text_holder, value_vec2(.5,.5));
-
+    //entity_set_relpos(e->text_holder, value_vec2(0,0));
+    
+    e->highest=NULL;
+    
     memset(&e->keystate,0,sizeof(e->keystate));
 
     e->cursor_blink_state=true;
@@ -100,9 +142,17 @@ editor *ctor_editor()
     e->text_selection_end.y=0;
 
     e->text_entity=ctor_entity(e->text_holder);
+    entity_set_solid(e->text_entity,false);
     entity_set_relsize(e->text_entity, value_vec2(1,1));
     entity_set_order(e->text_entity,100);
 
+    e->page_tabs=NULL;
+    e->page_tabs_size=0;    
+    ctor_page_tab(e);
+    ctor_page_tab(e);
+    ctor_page_tab(e);
+    ctor_page_tab(e);
+    
     e->font_color=value_color(0,255,0,255);
 
     char **c=malloc(sizeof(char*));
@@ -118,7 +168,8 @@ editor *ctor_editor()
     e->lines_size=1;
 
     e->cursor=ctor_entity(e->text_entity);
-
+    entity_set_solid(e->cursor,false);
+    
     entity_set_size(e->cursor,value_vec2(2,global_font_size));//@todo size text and set to actual render size, in addition to rendering cursor in code multicolor support etc, have to size text width to move cursor anyway
     entity_add_renderer(e->cursor,(renderer*)ctor_image_renderer(e->win,ctor_texture(e->win,"res/cursor.png")));
     e->cursor_x=0;

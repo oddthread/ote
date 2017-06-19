@@ -1,5 +1,4 @@
 /*
-
 @notes
 
 doing some optimizations e.g. changing the text storing data structure before writing future code (e.g. remote editing) might save time (unless it can all be done through some shared code)
@@ -7,8 +6,6 @@ doing some optimizations e.g. changing the text storing data structure before wr
 move all editor-stateful variables from main to editor
 
 designed to only have one font rendering in an editor
-
-
 */
 
 /*@bugs
@@ -27,9 +24,9 @@ text selection stops working when mouse goes outside of window, doesnt get left 
 if you select a line from the 0th character and go upwards with the selection it highlights that space when it shouldnt?
 */
 
-/*@todo actually check off this shit
+/*@todo
 
-run valgrind and fix all the crap
+keep using valgrind
 
 make cursor x last highest index
 

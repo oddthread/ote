@@ -1,6 +1,38 @@
 #include "../h/base.h"
 #include "../h/event_handler.h"
 
+void log_ints(int *x,int sz)
+{
+    printf("(");
+    for(int i=0; i<sz; i++)
+    {   
+        printf("%d,",x[i]);
+    }
+    printf(")\n");
+}
+void test_macros()
+{
+    u32 i;
+    int *test=malloc(6*sizeof(int));
+    test[0]=0;
+    test[1]=1;
+    test[2]=2;
+    test[3]=3;
+    test[4]=4;
+    test[5]=5;
+
+    int sz=6;
+    log_ints(test,sz);
+    int somenum=5;
+    M_INSERT(test,sz,2,somenum);
+    log_ints(test,sz);
+    M_REMOVE(test,sz,0,,int);
+    log_ints(test,sz);
+    
+    M_APPEND(test,sz,(int)25);
+    log_ints(test,sz);
+}
+
 int main()
 {
     global_state *gs=ctor_global_state();
