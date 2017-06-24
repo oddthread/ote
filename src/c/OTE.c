@@ -39,7 +39,7 @@ int main()
     
     u32 frame_time_stamp=milli_current_time();
     s32 exit_code=0;
-    
+
     while(true)
     {
         u32 i;

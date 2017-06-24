@@ -121,6 +121,8 @@ editor *ctor_editor()
     entity_set_relsize(e->text_holder, value_vec2(1,1));
     //entity_set_relpos(e->text_holder, value_vec2(0,0));
     
+    window_set_position(e->win,100,100);
+    
     e->highest=NULL;
     
     memset(&e->keystate,0,sizeof(e->keystate));
