@@ -40,10 +40,11 @@ int main()
     u32 frame_time_stamp=milli_current_time();
     s32 exit_code=0;
 
+    //flush_events(ALL_EVENTS);
+
     while(true)
     {
         u32 i;
-
         while(poll_input(&gs->e))
         {
             exit_code=handle_event(gs);
@@ -64,7 +65,11 @@ int main()
 
         if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)
         {
-            sleep_milli(1000.0f/60.0f-(milli_current_time()-frame_time_stamp));
+            s32 sleep_time=1000.0f/60.0f-(milli_current_time()-frame_time_stamp);
+            if(sleep_time>0)
+            {
+                sleep_milli(sleep_time);
+            }
         }
     }
     
