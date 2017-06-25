@@ -196,8 +196,8 @@ void dtor_editor(editor *e)
     dtor_entity(e->root);/*@todo implement this function and it should free all children*/
     for(u32 i=0; i<e->action_list_size; i++)
     {
-        /*also this shit is getting double freed or invalid pointer or something... shows in valgrind*/
-        /*@bug @todo @leak dtor_action(e->action_list[i]);*/
+        //@bug @leak
+        dtor_action(e->action_list[i]);
     }
     free(e->action_list);
     /*@todo @bug @leak how to handle freeing of lines? does closing an editor free the lines? do they have their own copy?*/
@@ -377,7 +377,9 @@ void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_actio
 }
 /*
 @todo change to pass position explicitly
+it takes ownership of clip, by passing to action
 dont free clip, it is passed to an action which frees it
+dont reference clip after passing it
 */
 void add_text(editor *focused_editor, char *clip, bool do_add_action)
 {
@@ -420,7 +422,7 @@ void add_text(editor *focused_editor, char *clip, bool do_add_action)
         else
         {
             char *curline=focused_editor->lines[focused_editor->cursor_y];
-            char *modstring=str_insert(curline,clip[clip_index],focused_editor->cursor_x);
+            char *modstring=str_insert(curline,clip[clip_index],focused_editor->cursor_x);//@leak?
             focused_editor->lines[focused_editor->cursor_y]=modstring;
             editor_set_cursor_position(focused_editor,focused_editor->cursor_x+1,focused_editor->cursor_y);
         }
@@ -430,6 +432,7 @@ void add_text(editor *focused_editor, char *clip, bool do_add_action)
     {
         add_action(focused_editor,ctor_action(cursor_position_start, value_vec2(0,0), clip, ACTION_TEXT));
     }
+    
     text_block_renderer_set_text(focused_editor->tbr,focused_editor->lines,focused_editor->lines_size,focused_editor->font_color,&focused_editor->cursor_y);
 }
 
@@ -577,7 +580,10 @@ void add_action(editor *e, action *a)
     {
         for(u32 i=e->action_list_index+1; i<e->action_list_size; i++)
         {
-            dtor_action(e->action_list[i]);
+            if(e->action_list[i])
+            {
+                dtor_action(e->action_list[i]);
+            }
             e->action_list[i]=NULL;
         }
         ote_log("CUTTING OFF HEAD\n",LOG_TYPE_ACTION);
@@ -614,7 +620,7 @@ void do_action(editor *e, bool un)
             return;
         }
         a = e->action_list[e->action_list_index];
-
+        
         vec2 cursor_pos=e->action_list[e->action_list_index]->cursor_position;
         editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
 
@@ -665,12 +671,15 @@ void do_action(editor *e, bool un)
         }
         else if(a->type==ACTION_BACKSPACE)
         {
-            add_text(e,a->text,false);
+            /*
+            for these that use a->text copy the action string - dont want it to get freed in the add_text function
+            */
+            add_text(e,strcpy(malloc(strlen(a->text)+1),a->text),false);
             e->action_list_index--;
         }
         else if(a->type==ACTION_DELETE)
         {
-            add_text(e,a->text,false);
+            add_text(e,strcpy(malloc(strlen(a->text)+1),a->text),false);
             e->action_list_index--;
             editor_set_cursor_position(e, cursor_pos.x, cursor_pos.y);
         }
@@ -689,7 +698,7 @@ void do_action(editor *e, bool un)
         
         if(a->type==ACTION_TEXT)
         {
-            add_text(e, a->text, false);
+            add_text(e, strcpy(malloc(strlen(a->text)+1),a->text), false);
         }
         else if(a->type==ACTION_DELETE)
         {

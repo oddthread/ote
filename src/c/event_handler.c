@@ -486,8 +486,7 @@ s32 handle_event(global_state *gs)
                     char *str=malloc(2);
                     str[0]=char_to_insert;
                     str[1]=0;
-                    add_text(gs->focused_editor,str,true); 
-                    free(str);
+                    add_text(gs->focused_editor,str,true);
                     
                     if(AUTO_CURLY_BRACE)
                     {
