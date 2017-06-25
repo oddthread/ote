@@ -62,6 +62,7 @@ s32 handle_event_window(global_state *gs)
         {
             s32 i;
             bool hit=false;
+            set_cursor(CURSOR_TEXT);
             entity *highest=hit_test_recursive(gs->mouse_position,gs->focused_editor->root,gs->focused_editor->root);
             for(i=0; i<gs->focused_editor->page_tabs_size; i++)
             {
@@ -76,26 +77,27 @@ s32 handle_event_window(global_state *gs)
                     texture_set_alpha(gs->focused_editor->page_tabs[i]->tex,150);
                 }
             }
-            if(!hit)set_cursor(CURSOR_TEXT);
             gs->focused_editor->highest=highest;
     
             gs->mouse_position.x=gs->e.mouse_info.x;
             gs->mouse_position.y=gs->e.mouse_info.y;
             
-            
-            if(gs->mouse_position.x<=global_text_margin)
+            if(gs->focused_editor->page_tabs_size)
             {
-                for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                if(gs->mouse_position.x<=global_text_margin)
                 {
-                    entity_set_visible(gs->focused_editor->page_tabs[i]->ent,true);
-                }                
-            }
-            if(gs->mouse_position.x>entity_get_render_size(gs->focused_editor->page_tabs[0]->ent).x)
-            {
-                for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                    for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                    {
+                        entity_set_visible(gs->focused_editor->page_tabs[i]->ent,true);
+                    }                
+                }
+                if(gs->mouse_position.x>entity_get_render_size(gs->focused_editor->page_tabs[0]->ent).x)
                 {
-                    entity_set_visible(gs->focused_editor->page_tabs[i]->ent,false);
-                }                
+                    for(i=0; i<gs->focused_editor->page_tabs_size; i++)
+                    {
+                        entity_set_visible(gs->focused_editor->page_tabs[i]->ent,false);
+                    }                
+                }
             }
                         
             if(gs->focused_editor->start_selection_mouse)
@@ -354,7 +356,6 @@ s32 handle_event(global_state *gs)
                     {
                         add_text(gs->focused_editor,clip,true);
                     }
-
                 }
                 if(gs->e.type==KEY_X)
                 {
@@ -620,10 +621,16 @@ s32 handle_event(global_state *gs)
                         M_SHIFT_CHECK
                         if(gs->focused_editor->current_text_selection)
                         {
+                            //if you want to keep the text selected, will have to create a new text selection
+                            //basically just increase all values by 4 or whatever
+
                             //@TODO
                         }
-                        char *str=strcpy(malloc(5),"    ");
-                        add_text(gs->focused_editor, str,true);
+                        else
+                        {
+                            char *str=strcpy(malloc(5),"    ");
+                            add_text(gs->focused_editor, str,true);
+                        }
                     }
                     else if(gs->e.type==KEY_F11)
                     {

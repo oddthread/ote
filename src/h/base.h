@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 extern u32 num_spaces_to_insert_on_tab;
-extern char ote_log_buffer[100];
+extern char ote_log_buffer[1000];
 extern u32 const LOG_TYPE_ACTION;
 extern u32 const LOG_TYPE_STRINGS;
 extern u32 const LOG_TYPE_OTE;

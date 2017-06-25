@@ -150,11 +150,6 @@ editor *ctor_editor()
 
     e->page_tabs=NULL;
     e->page_tabs_size=0;    
-    ctor_page_tab(e);
-    ctor_page_tab(e);
-    ctor_page_tab(e);
-    ctor_page_tab(e);
-    
     e->font_color=value_color(0,255,0,255);
 
     char **c=malloc(sizeof(char*));

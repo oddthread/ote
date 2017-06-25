@@ -3,7 +3,7 @@
 #define OTE_DEBUG 1
 
 u32 num_spaces_to_insert_on_tab=4;
-char ote_log_buffer[100];
+char ote_log_buffer[1000];
 u32 const LOG_TYPE_ACTION=0;
 u32 const LOG_TYPE_STRINGS=1;
 u32 const LOG_TYPE_OTE=2;
@@ -30,5 +30,5 @@ void ote_log(char *text,u32 type)
 }
 
 char const *global_font_url="res/umr.ttf";
-u32 global_font_size=54;
+u32 global_font_size=20;
 s32 global_text_margin=0;/*if 0 line numbers wont render*/
