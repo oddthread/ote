@@ -300,7 +300,8 @@ void editor_update(editor *e_instance)
 
     //only update current page tab?
     page_tab *pt=e_instance->current_page_tab;
-
+    //calculate offset after updating all entities
+    update_entity_recursive(e_instance->root);
     if(pt)
     {
         if(pt->cursor_blink_timer>500)
@@ -346,7 +347,6 @@ void editor_update(editor *e_instance)
 
         entity_set_position(pt->text_holder,pt->offset);   
     }
-    update_entity_recursive(e_instance->root);
 }
 void editor_draw(editor *e_instance)
 {
