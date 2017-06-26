@@ -5,96 +5,52 @@
 #include "action.h"
 #include "text_selection.h"
 #include "../../../OTG/src/h/OTG.h"
+#include "../../../OSAL/src/h/input.h"
 
-typedef struct page_tab
-{
-    entity *ent;
-    texture *tex;
-    char *file_path;//if NULL working with a new buffer
-} page_tab;
-page_tab *ctor_page_tab(editor *e);
+typedef struct page_tab page_tab;
+page_tab *ctor_page_tab(editor *e, char *filepath);
 
-typedef struct editor
-{
-    keystate_interpreter_info keystate;
-    
-    bool start_selection_mouse;
-    bool start_selection_key;
-    bool wheel_override;
-    
-    entity *highest;
-    
-    action **action_list;
-    s32 action_list_size;
-    s32 action_list_index;
-
-    text_selection *current_text_selection;
-    vec2 text_selection_origin;
-    vec2 text_selection_end;
-
-    color font_color;
-    bool is_fullscreen;
-    char **lines;
-    s32 lines_size;
-    text_block_renderer *tbr;
-    window *win;
-    entity *root;
-    entity *text_holder;
-    entity *text_entity;
-    ttf_font *font;
-
-    entity *focused_entity;
-    
-    s32 cursor_x;
-    s32 cursor_y;
-    entity *cursor;
-    
-    bool cursor_blink_state;
-    s64 cursor_blink_timer;
-    s64 last_time;
-    s64 held_key;
-    s64 held_key_time_stamp;
-    vec2 offset;
-    
-    page_tab **page_tabs;
-    s32 page_tabs_size;
-} editor;
-
-void editor_set_cursor_position(editor *e, s32 x, s32 y);
+typedef struct editor editor;
 editor *ctor_editor();
 void dtor_editor(editor *e);
 
-void update_editor(editor *e);
-void render_editor(editor *e);
-
+void editor_set_current_page_tab(editor *e, page_tab *p);
+void editor_set_cursor_position(editor *e, s32 x, s32 y);
+s32 editor_get_lines_size(editor *e);
+char *editor_get_line(editor *e, s32 line_y);
+window *editor_get_window(editor *e);
+ttf_font *editor_get_font(editor *e);
+entity *editor_get_text_holder(editor *e);
+text_selection *editor_get_text_selection(editor *e);
+void editor_set_text_selection(editor *e, text_selection *ts);
+void editor_set_line(editor *e,s32 y,char *str);
+entity *editor_get_highest(editor *e);
+entity *editor_get_root(editor *e);
+void editor_remove_line(editor *e,s32 y);
+void editor_insert_line(editor *e, s32 y, char *str);
+char *editor_get_text(editor *focused_editor,vec2 begin, vec2 end);
 /*
 if you pass the end of one line and the beginning of the next line it concats them
-
 */
-void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_action, u32 type);
+void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_add_action, u32 type);
 /*
 @todo change to pass position explicitly
 dont free clip, it is passed to an action which frees it
+@leak if false is passed to do add action clipn needs to be freed doesnt it?
 */
-void add_text(editor *focused_editor, char *clip, bool do_add_action);
+void editor_add_text(editor *focused_editor, char *clip, bool do_add_action);
+vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position);
+void editor_add_action(editor *e, action *a);
+void editor_do_action(editor *e, bool un);
 
-vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor);
-char *get_text(vec2 begin, vec2 end, editor *focused_editor);
-/*
-if you pass the end of one line and the beginning of the next line it concats them
+bool editor_process_keys(editor *e, event ev);
+s32 editor_handle_keys(editor *e, event ev);
+void editor_handle_mouse_motion(editor *e, vec2 mouse_position);
+void editor_handle_mouse_wheel(editor *e, f32 mousewheel);
+void editor_handle_left_mouse_up(editor *e);
+void editor_handle_left_mouse_down(editor *e, vec2 mouse_position);
 
-*/
-void delete_text(vec2 begin, vec2 end, editor *focused_editor, bool do_add_action, u32 type);
-/*
-@todo change to pass position explicitly
-dont free clip, it is passed to an action which frees it
-*/
-void add_text(editor *focused_editor, char *clip, bool do_add_action);
+void editor_update(editor *e);
+void editor_draw(editor *e);
 
-
-vec2 position_to_cursor(vec2 mouse_position, editor *focused_editor);
-char *get_text(vec2 begin, vec2 end, editor *focused_editor);
-
-void add_action(editor *e, action *a);
-void do_action(editor *e, bool un);
 #endif

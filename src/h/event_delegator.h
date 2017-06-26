@@ -16,6 +16,6 @@ typedef struct global_state
 
 global_state *ctor_global_state();
 
-s32 handle_event(global_state *gs);
+s32 delegate_event(global_state *gs);
 
 #endif

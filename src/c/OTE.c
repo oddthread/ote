@@ -1,5 +1,5 @@
 #include "../h/base.h"
-#include "../h/event_handler.h"
+#include "../h/event_delegator.h"
 
 void log_ints(int *x,int sz)
 {
@@ -47,7 +47,7 @@ int main()
         u32 i;
         while(poll_input(&gs->e))
         {
-            exit_code=handle_event(gs);
+            exit_code=delegate_event(gs);
             if(exit_code)
             {
                 goto EXIT_LABEL;
@@ -56,11 +56,11 @@ int main()
 
         for(i=0; i<gs->editors_size; i++)
         {
-            update_editor(gs->editors[i]);
+            editor_update(gs->editors[i]);
         }
         for(i=0; i<gs->editors_size; i++)
         {
-            render_editor(gs->editors[i]);
+            editor_draw(gs->editors[i]);
         }
 
         if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)

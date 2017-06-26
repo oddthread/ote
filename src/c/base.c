@@ -16,6 +16,7 @@ bool const AUTO_INDENT=true;
 
 s32 const LINES_ON_PAGE_DOWNUP=10;
 
+s32 const REQUEST_SPAWN_EDITOR=1;
 
 void ote_log(char *text,u32 type)
 {
@@ -27,6 +28,25 @@ void ote_log(char *text,u32 type)
         printf("<END_LOG>\n");
     }
     #endif
+}
+
+s32 indentation_level_spaces(char *line)
+{   
+    s32 retval=0;
+    s32 i=0;
+    s32 strlen_line=strlen(line);
+    for(;i<strlen_line; i++)
+    {
+        if(line[i]!=' ')
+        {
+            break;
+        }
+        else
+        {
+            retval++;
+        }
+    }
+    return retval;
 }
 
 char const *global_font_url="res/umr.ttf";

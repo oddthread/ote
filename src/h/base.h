@@ -18,7 +18,11 @@ extern bool const AUTO_INDENT;
 
 extern s32 const LINES_ON_PAGE_DOWNUP;
 
+extern s32 const REQUEST_SPAWN_EDITOR;
+
 void ote_log(char *text,u32 type);
+
+s32 indentation_level_spaces(char *line);
 
 extern char const *global_font_url;
 extern u32 global_font_size;
