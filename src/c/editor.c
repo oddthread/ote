@@ -6,9 +6,11 @@
 #include "../../../OSAL/src/h/system.h"
 
 /*
-
+    close button on pagetabs, cut filename text, highlight on selection, make static size with 1 pixel offset
+  
+    when opening a tab save backup of file to res/backup directory (remove slashes to use as unique filename)
+    
     manage textures properly (dont recreate...)
-    close button on pagetabs, cut filename text, highlight on selection, make size of margin?
 
     for find and replace:
     can spawn a top-borderless(OS border) EDITOR small window with modified handle_event with a red outline or something where typing the name searches in its associated real editor
@@ -20,6 +22,8 @@
 
     a lot of the syntax highlighting stuff actually requires some parsing so prolly just wait till the parser is done
         yay greentext
+
+    should lock files while open or no?
 */
 typedef struct page_tab
 {
@@ -97,6 +101,7 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     {
         x=0;
     }
+
     if(e->current_page_tab->current_text_selection)
     {
         dtor_text_selection(e);
