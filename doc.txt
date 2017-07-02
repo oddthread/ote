@@ -1,4 +1,17 @@
 /*
+    instantiating remote objects, should it be opaque in the language?
+
+    automatic documentation generation - what exists? doxygen looks good. but wont work with OTL
+        can create a separate program (or "header mode" in OTE) for basically just viewing header files, everything is a clickable link
+        can generate javascript from that to create online documentation
+        debugger, doc generator, interpreter/binding generator/compiler, editor, QML type language that compiles to OTL
+
+    (x || 100)
+
+    ? in new language if x is zero should evaluate to 100 not 1. (javascript style)
+*/
+
+/*
 @notes
 
 doing some optimizations e.g. changing the text storing data structure before writing future code (e.g. remote editing) might save time (unless it can all be done through some shared code)

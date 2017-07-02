@@ -14,7 +14,7 @@ typedef struct global_state
     vec2 mouse_position;    
 } global_state;
 
-global_state *ctor_global_state();
+global_state *ctor_global_state(int argc, char **argv);
 
 s32 delegate_event(global_state *gs);
 

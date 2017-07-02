@@ -3,7 +3,7 @@
 #include "../h/event_delegator.h"
 #include "../h/base.h"
 
-global_state *ctor_global_state()
+global_state *ctor_global_state(int argc, char **argv)
 {
     init_graphics();
     init_input();
@@ -23,11 +23,17 @@ global_state *ctor_global_state()
     gs->mouse_position.x=0;
     gs->mouse_position.y=0;    
 
+
     
     set_cursor(CURSOR_TEXT);
+
+    for(s32 i=1; i<argc; i++)
+    {
+        ctor_page_tab(gs->focused_editor,argv[i]);
+    }
+
     return gs;
 }
-
 
 s32 delegate_event_window(global_state *gs)
 {

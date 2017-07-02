@@ -33,10 +33,10 @@ void test_macros()
     log_ints(test,sz);
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    global_state *gs=ctor_global_state();
-    
+    global_state *gs=ctor_global_state(argc, argv);
+
     u32 frame_time_stamp=milli_current_time();
     s32 exit_code=0;
 
@@ -53,7 +53,7 @@ int main()
                 goto EXIT_LABEL;
             }
         }
-
+        
         for(i=0; i<gs->editors_size; i++)
         {
             editor_update(gs->editors[i]);
@@ -63,7 +63,7 @@ int main()
             editor_draw(gs->editors[i]);
         }
 
-        if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)
+        if(0)//milli_current_time()-frame_time_stamp<1000.0f/60.0f)
         {
             s32 sleep_time=1000.0f/60.0f-(milli_current_time()-frame_time_stamp);
             if(sleep_time>0)

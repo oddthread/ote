@@ -28,6 +28,9 @@
 typedef struct page_tab
 {
     entity *ent;
+    entity *close_button;
+    entity *file_text;
+
     texture *tex;
     char *file_path;//if NULL working with a new buffer
 
@@ -141,13 +144,14 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     
     size_ttf_font(e->current_page_tab->font,spliced_str,&width,&height);
     
-    entity_set_position(e->current_page_tab->cursor,value_vec2(width+global_text_margin,height*y));
+    entity_set_position(e->current_page_tab->cursor,value_vec2(width,height*y));
 
     if(spliced_str)
     {
         free(spliced_str);
     }
 }
+
 page_tab *ctor_page_tab(editor *e, char *filepath)
 {    
     page_tab *p=malloc(sizeof(page_tab));
@@ -155,15 +159,24 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity *button_holder=ctor_entity(e->root);
     p->ent=button_holder;
     
+    //@todo make these entities and implement editor_close_tab
+    p->close_button=ctor_entity(p->ent);
+    p->file_text=ctor_entity(p->ent);
+
     p->file_path=strcpy(malloc(strlen(filepath)+1),filepath);//might be parameter
     
-    entity_set_relsize(button_holder,value_vec2(.2,.05));
-    
+    //entity_set_relsize(button_holder,value_vec2(.2,.05));
+    entity_set_size(button_holder, value_vec2(global_text_margin?global_text_margin:standard_button_width,standard_button_height));
     entity_set_relposme(button_holder,value_vec2(0,e->page_tabs_size));
-    entity_set_position(button_holder,value_vec2(0,5*e->page_tabs_size));
+    entity_set_position(button_holder,value_vec2(0,1*e->page_tabs_size));
     
     entity_set_order(button_holder,999);
-    texture *top_white_texture=ctor_texture(e->win,"res/cursor.png");
+
+    char *base_path=get_base_path();
+    char *adjpath=str_cat(base_path,"res/cursor.png");
+    texture *top_white_texture=ctor_texture(e->win,adjpath);
+    free(adjpath);
+
     p->tex=top_white_texture;
     texture_set_alpha(top_white_texture,150);
     entity_add_renderer(button_holder,(renderer*)ctor_image_renderer(e->win,top_white_texture));
@@ -216,13 +229,19 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity_set_solid(p->cursor,false);
     
     entity_set_size(p->cursor,value_vec2(2,global_font_size));//@todo size text and set to actual render size, in addition to rendering cursor in code multicolor support etc, have to size text width to move cursor anyway
-    entity_add_renderer(p->cursor,(renderer*)ctor_image_renderer(e->win,ctor_texture(e->win,"res/cursor.png")));
+    
+    adjpath=str_cat(base_path,"res/cursor.png");
+    entity_add_renderer(p->cursor,(renderer*)ctor_image_renderer(e->win,ctor_texture(e->win,adjpath)));
+    free(adjpath);
+
     p->cursor_x=0;
     p->cursor_y=0;
     
-    p->font=ctor_ttf_font(global_font_url,global_font_size);
+    adjpath=str_cat(base_path,global_font_url);
+    p->font=ctor_ttf_font(adjpath,global_font_size);
+    free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
-    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,false,global_text_margin?&global_text_margin:NULL);
+    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left");
     text_block_renderer_set_text(r,c,p->lines_size,p->font_color,NULL);
     p->tbr=r;
     entity_add_renderer(p->text_entity,(renderer*)r);
@@ -231,7 +250,9 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->start_selection_key=false;
 
     editor_set_current_page_tab(e,p);
-    editor_add_text(e,malloc_file_cstr(filepath),false);
+    editor_add_text(e,malloc_file_cstr(filepath),false);//@leak can free here since false add_action
+
+    sdl_free(base_path);
     return p;
 }
 void dtor_page_tab(page_tab *p)
@@ -277,10 +298,25 @@ void dtor_editor(editor *e)
     free(e);
 }
 
+static void editor_update_page_tabs(editor *e)
+{
+
+}
+static void editor_close_tab(editor *e, page_tab *p)
+{
+    editor_update_page_tabs(e);
+}        
 void editor_set_current_page_tab(editor *e, page_tab *p)
 {
     if(e->current_page_tab)entity_set_visible(e->current_page_tab->text_holder,false);
     e->current_page_tab=p;
+
+    for(u32 i=0; i<e->page_tabs_size; i++)
+    {
+        texture_set_alpha(e->page_tabs[i]->tex,standard_button_alpha);    
+    }
+    texture_set_alpha(p->tex,standard_button_selected_alpha);
+    
     entity_set_visible(e->current_page_tab->text_holder,true);
 }
 page_tab *editor_get_current_page_tab(editor *e)
@@ -300,6 +336,7 @@ void editor_update(editor *e_instance)
 
     int w;
     int h;
+
     window_get_size(e_instance->win,&w,&h);
     entity_set_size(e_instance->root,value_vec2(w,h));
 
@@ -309,6 +346,17 @@ void editor_update(editor *e_instance)
     update_entity_recursive(e_instance->root);
     if(pt)
     {
+
+        if(global_text_margin)
+        {
+            char buffer[MAXIMUM_LINE_NUMBER_LENGTH];
+            s32 size_width;
+            s32 size_height;
+            itoa(pt->lines_size,buffer,10);
+            size_ttf_font(pt->font,buffer,&size_width,&size_height);
+            global_text_margin=size_width+offset_margin;
+        }
+        
         if(pt->cursor_blink_timer>500)
         {
             pt->cursor_blink_state=!pt->cursor_blink_state;
@@ -349,7 +397,7 @@ void editor_update(editor *e_instance)
         {
             pt->offset.y=0;
         }
-
+        pt->offset.x+=global_text_margin;
         entity_set_position(pt->text_holder,pt->offset);   
     }
 }
@@ -425,13 +473,19 @@ void editor_handle_mouse_motion(editor *e, vec2 mouse_position)
     {
         if(highest==e->page_tabs[i]->ent)
         {
-            texture_set_alpha(e->page_tabs[i]->tex,255);
+            if(!entity_is_or_is_recursive_child(editor_get_current_page_tab(e)->ent,e->page_tabs[i]->ent))
+            {
+                texture_set_alpha(e->page_tabs[i]->tex,standard_button_hover_alpha);
+            }
             set_cursor(CURSOR_NORMAL);
             hit=true;
         }
         else
         {
-            texture_set_alpha(e->page_tabs[i]->tex,150);
+            if(!entity_is_or_is_recursive_child(editor_get_current_page_tab(e)->ent,e->page_tabs[i]->ent))
+            {
+                texture_set_alpha(e->page_tabs[i]->tex,standard_button_alpha);
+            }
         }
     }
     e->highest=highest;
@@ -476,6 +530,11 @@ void editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
         if(e->highest==e->page_tabs[i]->ent)
         {
             editor_set_current_page_tab(e,e->page_tabs[i]);
+            return;
+        }
+        if(e->highest==e->page_tabs[i]->close_button)
+        {
+            editor_close_tab(e,e->page_tabs[i]);
             return;
         }
     }
@@ -642,12 +701,15 @@ s32 editor_handle_keys(editor *e, event ev)
         /*select all*/
         if(ev.type==KEY_A)
         {
-            vec2 begin=value_vec2(0,0);
-            vec2 end=value_vec2(strlen(editor_get_line(e,e->current_page_tab->lines_size-1)),e->current_page_tab->lines_size-1);
+            if(!e->current_page_tab->current_text_selection)
+            {
+                vec2 begin=value_vec2(0,0);
+                vec2 end=value_vec2(strlen(editor_get_line(e,e->current_page_tab->lines_size-1)),e->current_page_tab->lines_size-1);
 
-            e->current_page_tab->current_text_selection=ctor_text_selection(begin, end, e);
-            e->current_page_tab->text_selection_origin=begin;
-            e->current_page_tab->text_selection_end=end;
+                e->current_page_tab->current_text_selection=ctor_text_selection(begin, end, e);
+                e->current_page_tab->text_selection_origin=begin;
+                e->current_page_tab->text_selection_end=end;
+            }
         }
         /*open new window*/
         if(ev.type==KEY_N)
@@ -674,7 +736,6 @@ s32 editor_handle_keys(editor *e, event ev)
             char *sdl_clip=get_clipboard_text();
             char *clip=strcpy(malloc(strlen(sdl_clip)+1),sdl_clip);
             sdl_free(sdl_clip);
-            clip=str_remove_characters(clip,'\r');
             if(clip)
             {
                 editor_add_text(e,clip,true);
@@ -959,13 +1020,19 @@ s32 editor_handle_keys(editor *e, event ev)
                 }
                 else
                 {
-                    char *str=strcpy(malloc(5),"    ");
+                    char *str=strcpy(malloc(2),"\t");
                     editor_add_text(e, str,true);
                 }
             }
+            else if(ev.type==KEY_F10)
+            {
+                global_text_margin=global_text_margin?0:50;
+                
+                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
+                    e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL);
+            }
             else if(ev.type==KEY_F11)
             {
-                M_SHIFT_CHECK
                 e->is_fullscreen=!e->is_fullscreen;
                 window_toggle_fullscreen(e->win,e->is_fullscreen);
             }
@@ -1151,6 +1218,8 @@ dont reference clip after passing it
 */
 void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
 {
+    clip=str_remove_characters(clip,'\r');
+    
     if(focused_editor->current_page_tab->current_text_selection)
     {
         editor_delete_text(focused_editor, focused_editor->current_page_tab->text_selection_origin, focused_editor->current_page_tab->text_selection_end,false,ACTION_DELETE);
@@ -1179,6 +1248,16 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
             free(temp);
 
             editor_set_cursor_position(focused_editor,0,focused_editor->current_page_tab->cursor_y+1);
+        }
+        else if(clip[clip_index]=='\t')
+        {
+            for(u32 i=0; i<num_spaces_to_insert_on_tab; i++)
+            {
+                char *curline=editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y);
+                char *modstring=str_insert(curline,' ',focused_editor->current_page_tab->cursor_x);//@leak?
+                editor_set_cursor_position(focused_editor,focused_editor->current_page_tab->cursor_x+1,focused_editor->current_page_tab->cursor_y);
+                editor_set_line(focused_editor,focused_editor->current_page_tab->cursor_y,modstring);
+            }
         }
         else
         {
@@ -1210,7 +1289,7 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
     s32 cursor_x=0;
     s32 cursor_y=mouse_position.y;
     
-    s32 mpos_x=mouse_position.x-global_text_margin;
+    s32 mpos_x=mouse_position.x;
 
     cursor_y/=h;
 

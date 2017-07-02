@@ -21,7 +21,11 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
         return t;
     }
     
-    texture *tex=ctor_texture(editor_get_window(focused_editor), "res/blue.png");
+    char *base_path=get_base_path();
+    char *adjpath=str_cat(base_path,"res/blue.png");
+    sdl_free(base_path);
+    texture *tex=ctor_texture(editor_get_window(focused_editor), adjpath);
+    free(adjpath);
     t->ir=ctor_image_renderer(editor_get_window(focused_editor),tex);
     texture_set_alpha(tex,100);
     
@@ -67,7 +71,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             
             entity_set_size(e,value_vec2(w,h));
-            entity_set_position(e,value_vec2(w2+global_text_margin,h*y));
+            entity_set_position(e,value_vec2(w2,h*y));
         }
         else if(y==start_position.y)
         {
@@ -91,7 +95,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(w2+global_text_margin,h*y));
+            entity_set_position(e,value_vec2(w2,h*y));
         }
         else if(y==end_position.y)
         {
@@ -109,7 +113,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(0+global_text_margin,h*y));
+            entity_set_position(e,value_vec2(0,h*y));
         }
         else
         {
@@ -127,7 +131,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
 
-            entity_set_position(e,value_vec2(0+global_text_margin,h*y));
+            entity_set_position(e,value_vec2(0,h*y));
         }
     }
     return t;

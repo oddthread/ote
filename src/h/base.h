@@ -28,6 +28,11 @@ extern char const *global_font_url;
 extern u32 global_font_size;
 extern s32 global_text_margin;/*if 0 line numbers wont render*/
 
+extern s32 standard_button_width;
+extern s32 standard_button_height;
+extern s32 standard_button_alpha;
+extern s32 standard_button_hover_alpha;
+extern s32 standard_button_selected_alpha;
 
 typedef struct keystate_interpreter_info
 {
