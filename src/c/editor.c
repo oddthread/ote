@@ -6,6 +6,11 @@
 #include "../../../OSAL/src/h/system.h"
 
 /*
+    do same treatment with offset.x as did with offset.y so that you can scroll back even when beyond the width
+        this might also fix the mousewheel.x issue
+
+    undo/redo crashing again
+    
     close button on pagetabs, cut filename text, highlight on selection, make static size with 1 pixel offset
   
     when opening a tab save backup of file to res/backup directory (remove slashes to use as unique filename)
