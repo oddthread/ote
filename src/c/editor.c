@@ -27,10 +27,13 @@
 */
 typedef struct page_tab
 {
+    renderer *ent_renderer;
     entity *ent;
     entity *close_button;
     entity *file_text;
 
+    texture *green_tex;
+    texture *red_tex;
     texture *tex;
     char *file_path;//if NULL working with a new buffer
 
@@ -42,9 +45,12 @@ typedef struct page_tab
     bool start_selection_key;
     bool wheel_override;
 
+    entity *overlay_line;
     action **action_list;
     s32 action_list_size;
     s32 action_list_index;
+
+    u32 action_on_save;
 
     text_selection *current_text_selection;
     vec2 text_selection_origin;
@@ -77,7 +83,6 @@ typedef struct editor
     entity *root;
 
     entity *focused_entity;//used for UI later, will be current_page_tab or some UI entity
-    
     page_tab *current_page_tab;
     page_tab **page_tabs;
     s32 page_tabs_size;
@@ -158,7 +163,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     u32 i;
     entity *button_holder=ctor_entity(e->root);
     p->ent=button_holder;
-    
+    p->action_on_save=NULL;
     //@todo make these entities and implement editor_close_tab
     p->close_button=ctor_entity(p->ent);
     p->file_text=ctor_entity(p->ent);
@@ -166,20 +171,24 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->file_path=strcpy(malloc(strlen(filepath)+1),filepath);//might be parameter
     
     //entity_set_relsize(button_holder,value_vec2(.2,.05));
-    entity_set_size(button_holder, value_vec2(global_text_margin?global_text_margin:standard_button_width,standard_button_height));
+    entity_set_size(button_holder, value_vec2(standard_button_width,standard_button_height));
     entity_set_relposme(button_holder,value_vec2(0,e->page_tabs_size));
     entity_set_position(button_holder,value_vec2(0,1*e->page_tabs_size));
     
     entity_set_order(button_holder,999);
 
     char *base_path=get_base_path();
-    char *adjpath=str_cat(base_path,"res/cursor.png");
-    texture *top_white_texture=ctor_texture(e->win,adjpath);
+    char *adjpath=str_cat(base_path,"res/red.png");
+    p->red_tex=ctor_texture(e->win,adjpath);
     free(adjpath);
-
-    p->tex=top_white_texture;
-    texture_set_alpha(top_white_texture,150);
-    entity_add_renderer(button_holder,(renderer*)ctor_image_renderer(e->win,top_white_texture));
+    adjpath=str_cat(base_path,"res/green.png");
+    p->green_tex=ctor_texture(e->win,adjpath);
+    free(adjpath);
+    p->tex=p->green_tex;
+    
+    texture_set_alpha(p->green_tex,150);
+    p->ent_renderer=ctor_image_renderer(e->win,p->green_tex);
+    entity_add_renderer(button_holder,(renderer*)p->ent_renderer);
     
     M_APPEND(e->page_tabs,e->page_tabs_size,p);
 
@@ -189,6 +198,17 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity_set_visible(p->text_holder, false);
     //entity_set_relpos(e->current_page_tab->text_holder, value_vec2(0,0));
     
+
+    p->overlay_line=ctor_entity(e->root);
+    entity_set_order(p->overlay_line,998);
+    adjpath=str_cat(base_path,"res/green.png");
+    texture *green_tex=ctor_texture(e->win,adjpath);
+    free(adjpath);
+    entity_add_renderer(p->overlay_line,(renderer*)ctor_image_renderer(e->win,green_tex));
+    entity_set_relsize(p->overlay_line,value_vec2(0,1));
+    entity_set_size(p->overlay_line,value_vec2(1,0));
+    entity_set_position(p->overlay_line,value_vec2(-offset_margin/2,0));
+
     memset(&p->keystate,0,sizeof(p->keystate));
 
     p->cursor_blink_state=true;
@@ -280,7 +300,14 @@ editor *ctor_editor()
     e->page_tabs=NULL;
     e->page_tabs_size=0;    
     e->is_fullscreen=false;//assumes windows start in windowed mode
-    
+
+
+    char *base_path=get_base_path();
+    char *adjpath=str_cat(base_path,"../script/icon/OTE.ico");
+    window_set_icon(e->win,adjpath);
+    free(adjpath);
+    sdl_free(base_path);
+
     window_set_position(e->win,100,100);
     flush_events(MOUSE_EVENTS);
     return e;
@@ -346,6 +373,21 @@ void editor_update(editor *e_instance)
     update_entity_recursive(e_instance->root);
     if(pt)
     {
+        if(pt->action_list_size)
+        {
+            //@bug using the pointer is probably bug prone or unsafe or whatever since it will be freed (could also get something else allocd to that place alter, another action)
+            //better to use a uid
+            if(e_instance->current_page_tab->action_on_save==e_instance->current_page_tab->action_list[e_instance->current_page_tab->action_list_index]->uid)
+            {
+                e_instance->current_page_tab->tex=e_instance->current_page_tab->green_tex;
+                image_renderer_set_texture(e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tex);
+            }
+            else
+            {
+                e_instance->current_page_tab->tex=e_instance->current_page_tab->red_tex;
+                image_renderer_set_texture(e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tex);
+            }
+        }
 
         if(global_text_margin)
         {
@@ -371,9 +413,9 @@ void editor_update(editor *e_instance)
             vec2 cursorpos=entity_get_render_position(pt->cursor);
             vec2 cursorsize=entity_get_render_size(pt->cursor);
 
-            if(cursorpos.x+cursorsize.x>w)
+            if(cursorpos.x+cursorsize.x>w-global_text_margin)
             {
-                pt->offset.x+=w-(cursorpos.x+cursorsize.x);
+                pt->offset.x+=(w-global_text_margin)-(cursorpos.x+cursorsize.x);
             }
             if(cursorpos.y+cursorsize.y>h)
             {
@@ -397,7 +439,9 @@ void editor_update(editor *e_instance)
         {
             pt->offset.y=0;
         }
+
         pt->offset.x+=global_text_margin;
+        entity_set_position(pt->overlay_line,value_vec2(-offset_margin/2+global_text_margin,0));
         entity_set_position(pt->text_holder,pt->offset);   
     }
 }
@@ -677,6 +721,13 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             write_file_cstr(e->current_page_tab->file_path,str);
             free(str);
+
+            if(e->current_page_tab->action_list_size)
+            {
+                e->current_page_tab->tex=e->current_page_tab->green_tex;
+                e->current_page_tab->action_on_save=e->current_page_tab->action_list[e->current_page_tab->action_list_index]->uid;
+                image_renderer_set_texture(e->current_page_tab->ent_renderer,e->current_page_tab->tex);
+            }
         }
         /*find, one for just window if pressing alt for all open windows*/
         if(ev.type==KEY_F)
@@ -1026,7 +1077,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_F10)
             {
-                global_text_margin=global_text_margin?0:50;
+                global_text_margin=global_text_margin?0:1;
                 
                 text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
                     e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL);
@@ -1236,7 +1287,7 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
     cursor_position_start.y=focused_editor->current_page_tab->cursor_y;
 
     while(clip_index<strlen_clip)
-    {     
+    {   
         if(clip[clip_index]=='\n')
         {                                 
             u32 next_line_splice_start=focused_editor->current_page_tab->cursor_x;
@@ -1255,8 +1306,8 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
             {
                 char *curline=editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y);
                 char *modstring=str_insert(curline,' ',focused_editor->current_page_tab->cursor_x);//@leak?
-                editor_set_cursor_position(focused_editor,focused_editor->current_page_tab->cursor_x+1,focused_editor->current_page_tab->cursor_y);
                 editor_set_line(focused_editor,focused_editor->current_page_tab->cursor_y,modstring);
+                editor_set_cursor_position(focused_editor,focused_editor->current_page_tab->cursor_x+1,focused_editor->current_page_tab->cursor_y);
             }
         }
         else

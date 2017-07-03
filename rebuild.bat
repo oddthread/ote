@@ -1,1 +1,0 @@
-cd ../OSAL && make && cd ../OTG && make && cd ../OTE && make

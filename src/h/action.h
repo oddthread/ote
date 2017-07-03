@@ -5,6 +5,7 @@
 
 typedef struct action
 {
+    u32 uid;
     vec2 cursor_position;
     vec2 optional_end_position;
 	enum {ACTION_TEXT,ACTION_DELETE,ACTION_BACKSPACE} type;

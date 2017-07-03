@@ -1,0 +1,1 @@
+emcc -s USE_SDL=2 -s USE_SDL_IMAGE=2 -s USE_SDL_TTF=2 ../OSAL/src/c/gpu.c ../OSAL/src/c/graphics.c ../OSAL/src/c/input.c ../OSAL/src/c/system.c ../OSAL/src/c/util.c ../OTG/src/c/OTG.c src/c/main.c
