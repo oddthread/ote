@@ -1,5 +1,5 @@
-#ifndef EDITOR_H
-#define EDITOR_H
+#ifndef d_editor_h
+#define d_editor_h
 
 #include "ode/src/h/base.h"
 #include "ode/src/h/action.h"

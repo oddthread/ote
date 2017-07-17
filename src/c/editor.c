@@ -231,7 +231,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->ent_renderer=(renderer*)ctor_image_renderer(e->win,p->green_tex);
     entity_add_renderer(button_holder,(renderer*)p->ent_renderer);
     
-    M_APPEND(e->page_tabs,e->page_tabs_size,p);
+    d_append(e->page_tabs,e->page_tabs_size,p);
     
     p->text_holder=ctor_entity(e->root);
     entity_set_solid(p->text_holder,false);
@@ -356,7 +356,7 @@ static void editor_close_tab(editor *e, page_tab *p)
             {
                 e->current_page_tab=NULL;
             }
-            M_REMOVE(e->page_tabs,e->page_tabs_size,i,dtor_page_tab);
+            d_remove(e->page_tabs,e->page_tabs_size,i,dtor_page_tab);
             break;
         }
     }
@@ -789,7 +789,7 @@ bool editor_process_keys(editor *e, event ev)
     return false;
 }
 
-#define M_DELETE_SELECTION editor_delete_text(e, e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end, true, ACTION_DELETE);\
+#define d_delete_selection editor_delete_text(e, e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end, true, ACTION_DELETE);\
 dtor_text_selection(e);\
 e->current_page_tab->current_text_selection=NULL;\
 e->current_page_tab->start_selection_mouse=false;
@@ -906,7 +906,7 @@ s32 editor_handle_keys(editor *e, event ev)
             if(e->current_page_tab->current_text_selection)
             {
                 set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
-                M_DELETE_SELECTION
+                d_delete_selection
             }
         }
     }
@@ -916,7 +916,7 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             if(e->current_page_tab->current_text_selection)
             {
-                M_DELETE_SELECTION
+                d_delete_selection
             }
             else
             {
@@ -947,7 +947,7 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             if(e->current_page_tab->current_text_selection)
             {
-                M_DELETE_SELECTION
+                d_delete_selection
             }
             
             char *indent_str=strcpy(malloc(2),"\n");
@@ -977,7 +977,7 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             if(e->current_page_tab->current_text_selection)
             {
-                M_DELETE_SELECTION
+                d_delete_selection
             }
             else
             {
@@ -1009,7 +1009,7 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             if(e->current_page_tab->current_text_selection)
             {
-                M_DELETE_SELECTION
+                d_delete_selection
             }
 
             char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
@@ -1094,7 +1094,7 @@ s32 editor_handle_keys(editor *e, event ev)
         }
         else /*TEXT_SELECTION CLOSING KEYS IF SHIFT ISNT PRESSED*/
         {                    
-            #define M_SHIFT_CHECK if(e->current_page_tab->current_text_selection && !(get_mod_state() & KEY_MOD_SHIFT))\
+            #define d_shift_check if(e->current_page_tab->current_text_selection && !(get_mod_state() & KEY_MOD_SHIFT))\
             {\
                 dtor_text_selection(e);\
                 e->current_page_tab->current_text_selection=NULL;\
@@ -1120,7 +1120,7 @@ s32 editor_handle_keys(editor *e, event ev)
             
             if(ev.type==KEY_END)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 
                 char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
                 u32 last_character=0;
@@ -1141,7 +1141,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_HOME)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
                 u32 last_character=0;
 
@@ -1160,17 +1160,17 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_PAGE_DOWN)
             {      
-                M_SHIFT_CHECK                  
+                d_shift_check                  
                 editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y+LINES_ON_PAGE_DOWNUP);
             }
             else if(ev.type==KEY_PAGE_UP)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y-LINES_ON_PAGE_DOWNUP);
             }                
             else if(ev.type==KEY_TAB)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 if(e->current_page_tab->current_text_selection)
                 {
                     //if you want to keep the text selected, will have to create a new text selection
@@ -1198,7 +1198,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_LEFT)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 if(e->current_page_tab->cursor_x)
                 {
                     editor_set_cursor_position(e,e->current_page_tab->cursor_x - 1, e->current_page_tab->cursor_y);
@@ -1216,7 +1216,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_RIGHT)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 if(e->current_page_tab->cursor_x < strlen(editor_get_line(e,e->current_page_tab->cursor_y)))
                 {
                     editor_set_cursor_position(e,e->current_page_tab->cursor_x + 1, e->current_page_tab->cursor_y);
@@ -1232,7 +1232,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_UP)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 if(e->current_page_tab->cursor_y>0)
                 {
                     if(e->current_page_tab->cursor_x>=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1)))
@@ -1246,7 +1246,7 @@ s32 editor_handle_keys(editor *e, event ev)
             }
             else if(ev.type==KEY_DOWN)
             {
-                M_SHIFT_CHECK
+                d_shift_check
                 if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
                 {
                     

@@ -140,7 +140,7 @@ s32 delegate_event(global_state *gs)
                 s32 handle_keys_code=editor_handle_keys(gs->focused_editor, gs->e);
                 if(handle_keys_code==REQUEST_SPAWN_EDITOR)
                 {
-                    M_APPEND(gs->editors,gs->editors_size,ctor_editor());
+                    d_append(gs->editors,gs->editors_size,ctor_editor());
                 }
             }
         }

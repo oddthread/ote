@@ -1,5 +1,5 @@
-#ifndef TEXT_SELECTION_H
-#define TEXT_SELECTION_H
+#ifndef d_text_selection_h
+#define d_text_selection_h
 
 #include "opl/src/h/util.h"
 

@@ -1,5 +1,5 @@
-#ifndef BASE_H
-#define BASE_H
+#ifndef d_base_h
+#define d_base_h
 
 #include "opl/src/h/util.h"
 #include <stdio.h>

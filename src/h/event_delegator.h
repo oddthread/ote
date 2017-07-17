@@ -1,5 +1,5 @@
-#ifndef EVENT_HANDLER_H
-#define EVENT_HANDLER_H
+#ifndef d_event_delegator_h
+#define d_event_delegator_h
 
 #include "ode/src/h/editor.h"
 
