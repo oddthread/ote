@@ -1,11 +1,12 @@
-#include "../../../OSAL/src/h/graphics.h"
-#include "../../../OSAL/src/h/system.h"
+#include "opl/src/h/graphics.h"
+#include "opl/src/h/system.h"
 
-#include "../h/event_delegator.h"
-#include "../h/base.h"
+#include "ode/src/h/event_delegator.h"
+#include "ode/src/h/base.h"
 
 #include <stdlib.h>
 #include <string.h>
+
 global_state *ctor_global_state(int argc, char **argv)
 {
     init_graphics();

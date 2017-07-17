@@ -1,7 +1,7 @@
 #ifndef BASE_H
 #define BASE_H
 
-#include "../../../OSAL/src/h/util.h"
+#include "opl/src/h/util.h"
 #include <stdio.h>
 
 extern u32 num_spaces_to_insert_on_tab;

@@ -1,8 +1,9 @@
-#include "../h/editor.h"
-#include "../h/action.h"
+#include "ode/src/h/editor.h"
+#include "ode/src/h/action.h"
 
 #include <stdlib.h>
 #include <string.h>
+
 u32 action_uid_counter=0;
 action *ctor_action(vec2 cursor_position, vec2 optional_end_position, char *text, u32 type)
 {

@@ -1,7 +1,7 @@
 #ifndef TEXT_SELECTION_H
 #define TEXT_SELECTION_H
 
-#include "../../../OSAL/src/h/util.h"
+#include "opl/src/h/util.h"
 
 typedef struct editor editor;
 

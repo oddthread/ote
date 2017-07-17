@@ -1,4 +1,11 @@
-/*@OTE
+/*
+ode opens with the terminal, editors can be launched from the terminal
+
+ode marks files as dirty as they are edited, recompiling objects at some time and relinking the dirty objects
+automatically links the dependencies, none of that needs to be specified, can launch program with a macro hotkey
+*/
+
+/*
 
 interpreter/shell builtin functions: (or can be part of language and use language as build scripts see code example below
     compile(module path,output path, server modules to link[]=NULL);

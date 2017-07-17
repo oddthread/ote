@@ -1,7 +1,7 @@
 #ifndef ACTION_H
 #define ACTION_H
 
-#include "../../../OSAL/src/h/util.h"
+#include "opl/src/h/util.h"
 
 typedef struct action
 {

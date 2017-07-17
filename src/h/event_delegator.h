@@ -1,8 +1,9 @@
 #ifndef EVENT_HANDLER_H
 #define EVENT_HANDLER_H
 
-#include "../h/editor.h"
-#include "../../../OSAL/src/h/input.h"
+#include "ode/src/h/editor.h"
+
+#include "opl/src/h/input.h"
 
 typedef struct global_state
 {

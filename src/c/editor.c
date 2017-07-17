@@ -1,9 +1,10 @@
-#include "../h/base.h"
-#include "../h/action.h"
-#include "../h/editor.h"
-#include "../../../OSAL/src/h/util.h"
-#include "../../../OSAL/src/h/input.h"
-#include "../../../OSAL/src/h/system.h"
+#include "ode/src/h/base.h"
+#include "ode/src/h/action.h"
+#include "ode/src/h/editor.h"
+
+#include "opl/src/h/util.h"
+#include "opl/src/h/input.h"
+#include "opl/src/h/system.h"
 
 #include <stdlib.h>
 #include <string.h>

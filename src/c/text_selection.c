@@ -1,7 +1,9 @@
-#include "../../../OTG/src/h/OTG.h"
-#include "../../../OSAL/src/h/util.h"
-#include "../../../OSAL/src/h/system.h"
-#include "../h/editor.h"
+#include "osg/src/h/osg.h"
+
+#include "opl/src/h/util.h"
+#include "opl/src/h/system.h"
+
+#include "ode/src/h/editor.h"
 
 #include <stdlib.h>
 #include <string.h>

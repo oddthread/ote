@@ -1,11 +1,13 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
-#include "base.h"
-#include "action.h"
-#include "text_selection.h"
-#include "../../../OTG/src/h/OTG.h"
-#include "../../../OSAL/src/h/input.h"
+#include "ode/src/h/base.h"
+#include "ode/src/h/action.h"
+#include "ode/src/h/text_selection.h"
+
+#include "osg/src/h/osg.h"
+
+#include "opl/src/h/input.h"
 
 typedef struct page_tab page_tab;
 page_tab *ctor_page_tab(editor *e, char *filepath);
