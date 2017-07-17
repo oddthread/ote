@@ -8,13 +8,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-/*
-    do same treatment with offset.x as did with offset.y so that you can scroll back even when beyond the width
-        this might also fix the mousewheel.x issue
-
-    undo/redo crashing again
+/*@todo for editor
+    clip text_selection and cursor
     
-    close button on pagetabs, cut filename text, highlight on selection, make static size with 1 pixel offset
+    cut filename text, highlight on selection,
   
     when opening a tab save backup of file to res/backup directory (remove slashes to use as unique filename)
     
@@ -66,7 +63,7 @@ typedef struct page_tab
     s32 action_list_size;
     s32 action_list_index;
 
-    u32 action_on_save;
+    s32 action_on_save;
 
     text_selection *current_text_selection;
     vec2 text_selection_origin;
@@ -179,10 +176,11 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
 {    
     //roots are ent and text_holder
     page_tab *p=malloc(sizeof(page_tab));
+    memset(p,0,sizeof(page_tab));
     u32 i;
     entity *button_holder=ctor_entity(e->root);
     p->ent=button_holder;
-    p->action_on_save=0;
+    p->action_on_save=-1;
     entity_set_visible(p->ent, false);
 
     char *base_path=get_base_path();
@@ -399,12 +397,14 @@ editor *ctor_editor()
 void dtor_editor(editor *e)
 {
     dtor_window(e->win);
-    dtor_entity(e->root);/*@todo implement this function and it should free all children*/
 
     for(s32 i=0; i<e->page_tabs_size; i++)
     {
         dtor_page_tab(e->page_tabs[i]);
     }
+
+    //this has to be after dtor_page_tab because it holds references to entities that it frees explicitly
+    dtor_entity(e->root);/*@todo implement this function and it should free all children*/
 
     free(e);
 }
@@ -451,35 +451,37 @@ void editor_update(editor *e_instance)
 
     window_get_size(e_instance->win,&w,&h);
     entity_set_size(e_instance->root,value_vec2(w,h));
-    /*@todo
-    fix mouse_dirty, right now its not effective.
-    it should trigger mouse_motion next frame after the entities are updated to get the new highest
-    it doesnt for some reason
 
-    @leak in dtor_page_tab
-    @bug some numbers are being printed idk where its happening
-
-    @bug entity destructor on program exit
-    @bug undo/redo
-    @bug horizontal scrolling
-    */
-    if(e_instance->mouse_dirty)
-    {
-        //printf("%f,%f\n",get_mouse_position().x,get_mouse_position().y);
-        editor_handle_mouse_motion(e_instance,get_mouse_position());
-        e_instance->mouse_dirty=false;
-    }
     //only update current page tab?
     page_tab *pt=e_instance->current_page_tab;
-    //calculate offset after updating all entities
-    update_entity_recursive(e_instance->root);
     if(pt)
     {
-        if(pt->action_list_size)
+
+        //calculate offset after updating all entities
+        update_entity_recursive(e_instance->root);
+
+        /*@todo
+        fix mouse_dirty, right now its not effective.
+        it should trigger mouse_motion next frame after the entities are updated to get the new highest
+        it doesnt for some reason
+
+        @leak in dtor_page_tab
+        @bug some numbers are being printed idk where its happening
+
+        @bug entity destructor on program exit
+        @bug undo/redo
+        @bug horizontal scrolling
+        */
+        if(e_instance->mouse_dirty)
         {
-            //@bug using the pointer is probably bug prone or unsafe or whatever since it will be freed (could also get something else allocd to that place alter, another action)
-            //better to use a uid
-            if(e_instance->current_page_tab->action_on_save==e_instance->current_page_tab->action_list[e_instance->current_page_tab->action_list_index]->uid)
+            //printf("%f,%f\n",get_mouse_position().x,get_mouse_position().y);
+            editor_handle_mouse_motion(e_instance,get_mouse_position());
+            e_instance->mouse_dirty=false;
+        }
+
+        if(pt->action_list_size && pt->action_list_index>=0)
+        {            
+            if(pt->action_on_save==pt->action_list[pt->action_list_index]->uid)
             {
                 image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->green_tex);
             }
@@ -507,42 +509,42 @@ void editor_update(editor *e_instance)
         }
         pt->cursor_blink_timer+=milli_current_time()-pt->last_time;
         pt->last_time=milli_current_time();
-            
+
         if(!pt->wheel_override)
         {
             vec2 cursorpos=entity_get_render_position(pt->cursor);
             vec2 cursorsize=entity_get_render_size(pt->cursor);
 
-            if(cursorpos.x+cursorsize.x>w-global_text_margin)
+            s32 cpos_x=cursorpos.x;
+            s32 cpos_y=cursorpos.y;
+            s32 csize_x=cursorsize.x;
+            s32 csize_y=cursorsize.y;
+
+
+            if((cpos_x+csize_x)>w)
             {
-                pt->offset.x+=(w-global_text_margin)-(cursorpos.x+cursorsize.x);
+                pt->offset.x += ((w)-(cpos_x+csize_x));
             }
-            if(cursorpos.y+cursorsize.y>h)
+            if(cpos_y+csize_y>h)
             {
-                pt->offset.y+=h-(cursorpos.y+cursorsize.y);
+                pt->offset.y += h-(cpos_y+csize_y);
             }
-            if(cursorpos.x<0)
+            if(cpos_x<global_text_margin)
             {
-                pt->offset.x+=-(cursorpos.x);
+                pt->offset.x += (global_text_margin-cpos_x);
             }
-            if(cursorpos.y<0)
+            if(cpos_y<0)
             {
-                pt->offset.y+=-(cursorpos.y);
+                pt->offset.y += -(cpos_y);
             }
-        }
-        
-        if(pt->offset.x > 0)
-        {
-            pt->offset.x=0;
-        }
-        if(pt->offset.y > 0)
-        {
-            pt->offset.y=0;
         }
 
-        pt->offset.x+=global_text_margin;
         entity_set_position(pt->overlay_line,value_vec2(-offset_margin/2+global_text_margin,0));
-        entity_set_position(pt->text_holder,pt->offset);   
+        
+        vec2 v;
+        v.x=pt->offset.x;
+        v.y=pt->offset.y;
+        entity_set_position(pt->text_holder,v);   
     }
 }
 void editor_draw(editor *e_instance)
@@ -832,7 +834,8 @@ s32 editor_handle_keys(editor *e, event ev)
             write_file_cstr(e->current_page_tab->file_path,str);
             free(str);
 
-            if(e->current_page_tab->action_list_size)
+            //what should we do if we have no actions and they save? how to track action_list_index? need to at all?
+            if(e->current_page_tab->action_list_size && e->current_page_tab->action_list_index>0)
             {
                 e->current_page_tab->action_on_save=e->current_page_tab->action_list[e->current_page_tab->action_list_index]->uid;
                 image_renderer_set_texture((image_renderer*)e->current_page_tab->ent_renderer,e->current_page_tab->green_tex);
