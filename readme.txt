@@ -1,4 +1,6 @@
-	Building ode:
+State of the project: usable, but performance is very poor and only the basic features are in.
+
+        Building ode:
 
 If you're running windows first download the opl, and ode repositories from https://github.com/oddthread/
 
@@ -10,7 +12,7 @@ If you're running linux you'll have to write the makefiles yourself until I work
 
 If you're running OSX then you'll have to install SDL2 and create an Xcode project yourself until I port it to OSX. Note: this is a nightmare but there are plenty of tutorials you can find.
 
-	Some goals of this editor:
+    Some goals of this editor:
 
 Extremely responsive and performant - a frame should never pass where input isn't recieved and handled, fast startup/close time, etc. After the basic features are done most time will be spent on optimization.
 

@@ -10,7 +10,7 @@
 #include <string.h>
 /*@todo for editor
     clip text_selection and cursor
-    
+
     cut filename text, highlight on selection,
   
     when opening a tab save backup of file to res/backup directory (remove slashes to use as unique filename)
@@ -479,7 +479,12 @@ void editor_update(editor *e_instance)
             e_instance->mouse_dirty=false;
         }
 
-        if(pt->action_list_size && pt->action_list_index>=0)
+        //there is no valid action list_index, so the file is unmodified (a full undo has happened perhaps)
+        if(pt->action_list_index<=0)
+        {
+            image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->green_tex);
+        }
+        else if(pt->action_list_size)
         {            
             if(pt->action_on_save==pt->action_list[pt->action_list_index]->uid)
             {
