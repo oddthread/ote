@@ -1,5 +1,7 @@
 #include "../h/base.h"
 
+#include <stdlib.h>
+#include <string.h>
 #define OTE_DEBUG 1
 
 u32 num_spaces_to_insert_on_tab=4;
@@ -55,6 +57,7 @@ s32 global_text_margin=1;/*if 0 line numbers wont render*/
 
 s32 standard_button_width=200;
 s32 standard_button_height=50;
-s32 standard_button_alpha=100;
-s32 standard_button_hover_alpha=200;
-s32 standard_button_selected_alpha=255;
+
+r32 standard_button_alpha=.5;
+r32 standard_button_hover_alpha=.75;
+r32 standard_button_selected_alpha=1;

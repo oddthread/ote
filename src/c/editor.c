@@ -5,6 +5,8 @@
 #include "../../../OSAL/src/h/input.h"
 #include "../../../OSAL/src/h/system.h"
 
+#include <stdlib.h>
+#include <string.h>
 /*
     do same treatment with offset.x as did with offset.y so that you can scroll back even when beyond the width
         this might also fix the mousewheel.x issue
@@ -30,16 +32,24 @@
 
     should lock files while open or no?
 */
+
+static void editor_update_page_tabs(editor *e);
+static void editor_close_tab(editor *e, page_tab *p);
+
 typedef struct page_tab
 {
     renderer *ent_renderer;
     entity *ent;
+
     entity *close_button;
+    renderer *close_button_renderer;
+    texture *close_button_normal;
+    texture *close_button_hover;
+
     entity *file_text;
 
     texture *green_tex;
     texture *red_tex;
-    texture *tex;
     char *file_path;//if NULL working with a new buffer
 
     color font_color;
@@ -86,18 +96,20 @@ typedef struct editor
     bool is_fullscreen;
     window *win;
     entity *root;
-
+    bool mouse_dirty;
     entity *focused_entity;//used for UI later, will be current_page_tab or some UI entity
     page_tab *current_page_tab;
     page_tab **page_tabs;
     s32 page_tabs_size;
 } editor;
 
+
+
 //@TODO move checks in here, rather than doing them outside also
 void editor_set_cursor_position(editor *e, s32 x, s32 y)
 {
     //@todo modify current text selection if it exists
-    //printf("%d,%d,\n",x,y);
+    
     if(y>=editor_get_lines_size(e))
     {
         y=e->current_page_tab->lines_size-1;
@@ -164,39 +176,62 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
 
 page_tab *ctor_page_tab(editor *e, char *filepath)
 {    
+    //roots are ent and text_holder
     page_tab *p=malloc(sizeof(page_tab));
     u32 i;
     entity *button_holder=ctor_entity(e->root);
     p->ent=button_holder;
-    p->action_on_save=NULL;
+    p->action_on_save=0;
+    entity_set_visible(p->ent, false);
+
+    char *base_path=get_base_path();
+
+    char *adjpath=str_cat(base_path,"res/close.png");
     //@todo make these entities and implement editor_close_tab
     p->close_button=ctor_entity(p->ent);
+    
+    p->close_button_normal=ctor_texture(e->win,adjpath);
+    free(adjpath);
+    adjpath=str_cat(base_path,"res/close_hover.png");
+    p->close_button_hover=ctor_texture(e->win,adjpath);
+    free(adjpath);
+    
+    p->close_button_renderer=(renderer*)ctor_image_renderer(e->win,p->close_button_normal);
+    entity_add_renderer(p->close_button,p->close_button_renderer);
+    
+    entity_set_size(p->close_button, value_vec2(25,25));
+    entity_set_relpos(p->close_button,value_vec2(1,.5));
+    entity_set_relposme(p->close_button,value_vec2(-1,-.5));
+    entity_set_position(p->close_button,value_vec2(-25/2,0));
+    
+    /*@todo
+    dont even create this with the normal renderer here. instead rework the renderers so that 
+    they are used in a binding layer which is the only object that includes the platform.
+    just a switch over render types instead of virtual functions blah blah blah
+    then will be easier to add the new text renderer type
+    */
     p->file_text=ctor_entity(p->ent);
+    
 
     p->file_path=strcpy(malloc(strlen(filepath)+1),filepath);//might be parameter
     
     //entity_set_relsize(button_holder,value_vec2(.2,.05));
-    entity_set_size(button_holder, value_vec2(standard_button_width,standard_button_height));
-    entity_set_relposme(button_holder,value_vec2(0,e->page_tabs_size));
-    entity_set_position(button_holder,value_vec2(0,1*e->page_tabs_size));
     
     entity_set_order(button_holder,999);
 
-    char *base_path=get_base_path();
-    char *adjpath=str_cat(base_path,"res/red.png");
+
+    adjpath=str_cat(base_path,"res/red.png");
     p->red_tex=ctor_texture(e->win,adjpath);
     free(adjpath);
     adjpath=str_cat(base_path,"res/green.png");
     p->green_tex=ctor_texture(e->win,adjpath);
     free(adjpath);
-    p->tex=p->green_tex;
     
-    texture_set_alpha(p->green_tex,150);
-    p->ent_renderer=ctor_image_renderer(e->win,p->green_tex);
+    p->ent_renderer=(renderer*)ctor_image_renderer(e->win,p->green_tex);
     entity_add_renderer(button_holder,(renderer*)p->ent_renderer);
     
     M_APPEND(e->page_tabs,e->page_tabs_size,p);
-
+    
     p->text_holder=ctor_entity(e->root);
     entity_set_solid(p->text_holder,false);
     entity_set_relsize(p->text_holder, value_vec2(1,1));
@@ -262,7 +297,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->cursor_x=0;
     p->cursor_y=0;
     
-    adjpath=str_cat(base_path,global_font_url);
+    adjpath=str_cat(base_path,(char*)global_font_url);
     p->font=ctor_ttf_font(adjpath,global_font_size);
     free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
@@ -278,6 +313,8 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     editor_add_text(e,malloc_file_cstr(filepath),false);//@leak can free here since false add_action
 
     sdl_free(base_path);
+
+    editor_update_page_tabs(e);
     return p;
 }
 void dtor_page_tab(page_tab *p)
@@ -290,9 +327,50 @@ void dtor_page_tab(page_tab *p)
         dtor_action(p->action_list[i]);
     }
     free(p->action_list);
-    dtor_ttf_font(p->font);
-    dtor_text_block_renderer(p->tbr);
+    dtor_entity(p->ent);
+    dtor_entity(p->text_holder);
+    dtor_entity(p->overlay_line);
+    //@todo fix this
+    //dtor_ttf_font(p->font);
+    //dtor_text_block_renderer(p->tbr);
 }
+
+static void editor_update_page_tabs(editor *e)
+{
+    for(s32 i=0; i<e->page_tabs_size; i++)
+    {
+        entity_set_size(e->page_tabs[i]->ent, value_vec2(standard_button_width,standard_button_height));
+        entity_set_relposme(e->page_tabs[i]->ent,value_vec2(0,i));
+        entity_set_position(e->page_tabs[i]->ent,value_vec2(0,1*i));
+    }
+}
+static void editor_close_tab(editor *e, page_tab *p)
+{
+    for(s32 i=0; i<e->page_tabs_size; i++)
+    {
+        if(e->page_tabs[i]==p)
+        {
+            page_tab *dead_tab=e->page_tabs[i];
+            if(dead_tab==e->current_page_tab)
+            {
+                e->current_page_tab=NULL;
+            }
+            M_REMOVE(e->page_tabs,e->page_tabs_size,i,dtor_page_tab);
+            break;
+        }
+    }
+    
+    editor_update_page_tabs(e);
+
+    if(!e->current_page_tab)
+    {
+        if(e->page_tabs_size)
+        {
+            editor_set_current_page_tab(e,e->page_tabs[0]);
+        }
+    }
+    e->mouse_dirty=true;
+}    
 
 editor *ctor_editor()
 {
@@ -301,9 +379,9 @@ editor *ctor_editor()
     e->root=ctor_entity(NULL);
     e->current_page_tab=NULL;
     e->highest=NULL;
-    e->current_page_tab=NULL;
     e->page_tabs=NULL;
     e->page_tabs_size=0;    
+    e->mouse_dirty=false;
     e->is_fullscreen=false;//assumes windows start in windowed mode
 
 
@@ -329,27 +407,24 @@ void dtor_editor(editor *e)
 
     free(e);
 }
-
-static void editor_update_page_tabs(editor *e)
-{
-
-}
-static void editor_close_tab(editor *e, page_tab *p)
-{
-    editor_update_page_tabs(e);
-}        
+    
 void editor_set_current_page_tab(editor *e, page_tab *p)
 {
-    if(e->current_page_tab)entity_set_visible(e->current_page_tab->text_holder,false);
+    if(e->current_page_tab)
+    {
+        entity_set_visible(e->current_page_tab->text_holder,false);
+        entity_set_visible(e->current_page_tab->overlay_line,false);
+    }
     e->current_page_tab=p;
 
     for(u32 i=0; i<e->page_tabs_size; i++)
     {
-        texture_set_alpha(e->page_tabs[i]->tex,standard_button_alpha);    
+        entity_set_alpha(e->page_tabs[i]->ent,standard_button_alpha);
     }
-    texture_set_alpha(p->tex,standard_button_selected_alpha);
+    entity_set_alpha(p->ent,standard_button_selected_alpha);
     
     entity_set_visible(e->current_page_tab->text_holder,true);
+    entity_set_visible(e->current_page_tab->overlay_line,true);
 }
 page_tab *editor_get_current_page_tab(editor *e)
 {
@@ -363,6 +438,10 @@ s32 editor_get_lines_size(editor *e)
 {
     return e->current_page_tab->lines_size;
 }
+void editor_set_mouse_dirty(editor *e)
+{
+    e->mouse_dirty=true;
+}
 void editor_update(editor *e_instance)
 {
 
@@ -371,7 +450,24 @@ void editor_update(editor *e_instance)
 
     window_get_size(e_instance->win,&w,&h);
     entity_set_size(e_instance->root,value_vec2(w,h));
+    /*@todo
+    fix mouse_dirty, right now its not effective.
+    it should trigger mouse_motion next frame after the entities are updated to get the new highest
+    it doesnt for some reason
 
+    @leak in dtor_page_tab
+    @bug some numbers are being printed idk where its happening
+
+    @bug entity destructor on program exit
+    @bug undo/redo
+    @bug horizontal scrolling
+    */
+    if(e_instance->mouse_dirty)
+    {
+        //printf("%f,%f\n",get_mouse_position().x,get_mouse_position().y);
+        editor_handle_mouse_motion(e_instance,get_mouse_position());
+        e_instance->mouse_dirty=false;
+    }
     //only update current page tab?
     page_tab *pt=e_instance->current_page_tab;
     //calculate offset after updating all entities
@@ -384,13 +480,11 @@ void editor_update(editor *e_instance)
             //better to use a uid
             if(e_instance->current_page_tab->action_on_save==e_instance->current_page_tab->action_list[e_instance->current_page_tab->action_list_index]->uid)
             {
-                e_instance->current_page_tab->tex=e_instance->current_page_tab->green_tex;
-                image_renderer_set_texture(e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tex);
+                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->green_tex);
             }
             else
             {
-                e_instance->current_page_tab->tex=e_instance->current_page_tab->red_tex;
-                image_renderer_set_texture(e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tex);
+                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->red_tex);
             }
         }
 
@@ -515,26 +609,35 @@ void editor_insert_line(editor *focused_editor, s32 y, char *str)
 void editor_handle_mouse_motion(editor *e, vec2 mouse_position)
 {
     s32 i;
-    bool hit=false;
     set_cursor(CURSOR_TEXT);
     entity *highest=hit_test_recursive(mouse_position,e->root,e->root);
     for(i=0; i<e->page_tabs_size; i++)
     {
-        if(highest==e->page_tabs[i]->ent)
+        if(e->page_tabs[i]!=e->current_page_tab)
         {
-            if(!entity_is_or_is_recursive_child(editor_get_current_page_tab(e)->ent,e->page_tabs[i]->ent))
+            if(entity_is_or_is_recursive_child(e->page_tabs[i]->ent,highest))
             {
-                texture_set_alpha(e->page_tabs[i]->tex,standard_button_hover_alpha);
+                entity_set_alpha(e->page_tabs[i]->ent,standard_button_hover_alpha);
             }
-            set_cursor(CURSOR_NORMAL);
-            hit=true;
+            else
+            {
+                entity_set_alpha(e->page_tabs[i]->ent,standard_button_alpha);
+            }
+        }
+
+        if(entity_is_or_is_recursive_child(e->page_tabs[i]->ent,highest))
+        {
+            set_cursor(CURSOR_NORMAL);      
+        }
+
+        if(highest==e->page_tabs[i]->close_button)
+        {
+            set_cursor(CURSOR_HAND);
+            image_renderer_set_texture((image_renderer*)e->page_tabs[i]->close_button_renderer,e->page_tabs[i]->close_button_hover);
         }
         else
         {
-            if(!entity_is_or_is_recursive_child(editor_get_current_page_tab(e)->ent,e->page_tabs[i]->ent))
-            {
-                texture_set_alpha(e->page_tabs[i]->tex,standard_button_alpha);
-            }
+            image_renderer_set_texture((image_renderer*)e->page_tabs[i]->close_button_renderer,e->page_tabs[i]->close_button_normal);
         }
     }
     e->highest=highest;
@@ -563,7 +666,7 @@ void editor_handle_mouse_motion(editor *e, vec2 mouse_position)
         editor_set_cursor_position(e, new_selection.x, new_selection.y);
     }
 }
-void editor_handle_mouse_wheel(editor *e, f32 mousewheel)
+void editor_handle_mouse_wheel(editor *e, r32 mousewheel)
 {
     e->current_page_tab->offset.y-=mousewheel*(entity_get_render_size(e->current_page_tab->cursor).y)*5;
     e->current_page_tab->wheel_override=true;
@@ -572,19 +675,19 @@ void editor_handle_left_mouse_up(editor *e)
 {
     e->current_page_tab->start_selection_mouse=false;       
 }
-void editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
+bool editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
 {
     for(s32 i=0; i<e->page_tabs_size; i++)
     {
         if(e->highest==e->page_tabs[i]->ent)
         {
             editor_set_current_page_tab(e,e->page_tabs[i]);
-            return;
+            return false;
         }
         if(e->highest==e->page_tabs[i]->close_button)
         {
             editor_close_tab(e,e->page_tabs[i]);
-            return;
+            return true;
         }
     }
 
@@ -608,6 +711,7 @@ void editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
 
     e->current_page_tab->start_selection_mouse=true;
     e->current_page_tab->start_selection_key=false;
+    return false;
 }
 bool editor_process_keys(editor *e, event ev)
 {
@@ -729,9 +833,8 @@ s32 editor_handle_keys(editor *e, event ev)
 
             if(e->current_page_tab->action_list_size)
             {
-                e->current_page_tab->tex=e->current_page_tab->green_tex;
                 e->current_page_tab->action_on_save=e->current_page_tab->action_list[e->current_page_tab->action_list_index]->uid;
-                image_renderer_set_texture(e->current_page_tab->ent_renderer,e->current_page_tab->tex);
+                image_renderer_set_texture((image_renderer*)e->current_page_tab->ent_renderer,e->current_page_tab->green_tex);
             }
         }
         /*find, one for just window if pressing alt for all open windows*/

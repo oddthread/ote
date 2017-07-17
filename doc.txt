@@ -1,3 +1,50 @@
+/*@OTE
+
+interpreter/shell builtin functions: (or can be part of language and use language as build scripts see code example below
+    compile(module path,output path, server modules to link[]=NULL);
+    
+server modules are modules that will be used remotely, TOTALLY OPAQUE
+couldnt tell its a server in the code except that calls tend to be wrapped in async
+typechecked together at compile time but server is output as separate program
+when ctoring server module connect_tcp is called
+dtor close_tcp is called
+
+//could do import does modules and using does rvalues, both fall off at end of scope
+
+(){
+    OTL.import(OTL);
+    import(lib);
+    //or "import(OTL.lib);"
+    //lib.compile(,,,);
+}//shell could look like this with top and bottom line uneditable and the inside expanding as you type valid statements, then can save the module
+
+could also import objects e.g.
+var x:Entity=new Player();
+{//import falls off at end of scope (could be using)
+    import x;
+    relpos=[0,0];   
+}
+
+}
+{
+ 
+javascript sg style and c style object initialization is solved with inline method 
+declaration/call syntax
+new Entity()->{
+    size=[2,2];
+    pos=[5,5];
+    let x=2;
+    relpos=(x+1,5);
+};
+is an operator usable on any object, not just for construction
+
+   OR
+   
+change "import" to "using"
+allow "using" on any typename to accomplish the same thing as above
+maybe it can be wrapped in a block also idk   
+}
+*/
 /*
     instantiating remote objects, should it be opaque in the language?
 

@@ -1,8 +1,11 @@
 #include "../../../OSAL/src/h/graphics.h"
+#include "../../../OSAL/src/h/system.h"
 
 #include "../h/event_delegator.h"
 #include "../h/base.h"
 
+#include <stdlib.h>
+#include <string.h>
 global_state *ctor_global_state(int argc, char **argv)
 {
     init_graphics();
@@ -55,7 +58,10 @@ s32 delegate_event_window(global_state *gs)
             /*@bug sometimes the cursor changes row but doesnt change column*/
             if(gs->e.type==LEFT_MOUSE && gs->e.pressed)
             {
-                editor_handle_left_mouse_down(gs->focused_editor, gs->mouse_position);
+                if(editor_handle_left_mouse_down(gs->focused_editor, gs->mouse_position))
+                {
+                    return 0;
+                }
             }
             if(gs->e.type==LEFT_MOUSE && !gs->e.pressed)
             {
@@ -111,7 +117,7 @@ s32 delegate_event_window(global_state *gs)
         if(gs->e.type==DROP_FILE)
         {
             ctor_page_tab(gs->focused_editor,gs->e.str);
-            SDL_free(gs->e.str);
+            sdl_free(gs->e.str);
         } 
     }
     return 0;
@@ -123,7 +129,7 @@ s32 delegate_event(global_state *gs)
     
     exit_code=delegate_event_window(gs);
     
-    if(editor_get_current_page_tab(gs->focused_editor))
+    if(!exit_code&&editor_get_current_page_tab(gs->focused_editor))
     {
         /*@BUG IF RANDOMLY DONT GET KEYS ITS PROBABLY BECAUSE THIS E.TYPE CHECK*/
         if(gs->focused_editor && gs->e.type)

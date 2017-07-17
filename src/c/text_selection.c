@@ -1,5 +1,10 @@
 #include "../../../OTG/src/h/OTG.h"
+#include "../../../OSAL/src/h/util.h"
+#include "../../../OSAL/src/h/system.h"
 #include "../h/editor.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct text_selection
 {
