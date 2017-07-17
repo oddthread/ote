@@ -2,7 +2,7 @@ State of the project: usable, but performance is very poor and only the basic fe
 
         Building ode:
 
-If you're running windows first download the opl, and ode repositories from https://github.com/oddthread/
+If you're running windows first download the opl, osg, and ode repositories from https://github.com/oddthread/
 
 After you have the three repositories in the same directory, open a command prompt in windows, cd to the ode directory and run the rebuild batch file. You have to have SDL2 installed as well from libsdl.org and the microsoft C compiler that you get with Visual Studio.
 
