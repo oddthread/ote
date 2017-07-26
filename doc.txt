@@ -1,3 +1,26 @@
+/*@bugs
+*done, now if cursor is above it just places line 1* clicking above line 1 crashes
+
+undoing after placing the mouse highlights and deletes text?
+
+after using the text editor for some time (wrote like 150 lines)
+    undo and redo were inserting the characters in incorrect places (although it seemed to be the correct characters)
+
+text selection wasnt deleted when using the delete key
+
+text selection isnt deleted when using undo/redo
+
+cant select just a single character
+
+sometimes cursor is unresponsive after opening app
+
+sometimes enter will skip the first keypress
+
+text selection stops working when mouse goes outside of window, doesnt get left key up event? maybe just do mouseup event when cursor leaves window
+
+if you select a line from the 0th character and go upwards with the selection it highlights that space when it shouldnt?
+*/
+
 /*
 ode opens with the terminal, editors can be launched from the terminal
 
@@ -73,22 +96,6 @@ doing some optimizations e.g. changing the text storing data structure before wr
 move all editor-stateful variables from main to editor
 
 designed to only have one font rendering in an editor
-*/
-
-/*@bugs
-text selection wasnt deleted when using the delete key
-
-text selection isnt deleted when using undo/redo
-
-cant select just a single character
-
-sometimes cursor is unresponsive after opening app
-
-sometimes enter will skip the first keypress
-
-text selection stops working when mouse goes outside of window, doesnt get left key up event? maybe just do mouseup event when cursor leaves window
-
-if you select a line from the 0th character and go upwards with the selection it highlights that space when it shouldnt?
 */
 
 /*@todo

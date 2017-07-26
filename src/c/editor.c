@@ -1460,7 +1460,8 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
     s32 mpos_x=mouse_position.x;
 
     cursor_y/=h;
-
+    if(cursor_y<0)cursor_y=0;
+	
     if(mpos_x<0)
     {
         cursor_x=0;
