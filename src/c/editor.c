@@ -2,7 +2,7 @@
 #include "ode/src/h/action.h"
 #include "ode/src/h/editor.h"
 
-#include "opl/src/h/util.h"
+#include "oul/src/h/oul.h"
 #include "opl/src/h/input.h"
 #include "opl/src/h/system.h"
 
@@ -159,7 +159,7 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     }
     else
     {
-        spliced_str=malloc_str_slice(editor_get_line(e,y),0,x-1);
+        spliced_str=alloc_str_slice(editor_get_line(e,y),0,x-1);
     }
     
     size_ttf_font(e->current_page_tab->font,spliced_str,&width,&height);
@@ -179,6 +179,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     memset(p,0,sizeof(page_tab));
     u32 i;
     entity *button_holder=ctor_entity(e->root);
+    
     p->ent=button_holder;
     p->action_on_save=-1;
     entity_set_visible(p->ent, false);
@@ -309,11 +310,13 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->start_selection_key=false;
 
     editor_set_current_page_tab(e,p);
-    editor_add_text(e,malloc_file_cstr(filepath),false);//@leak can free here since false add_action
+    editor_add_text(e,alloc_file_to_str(filepath),false);//@leak can free here since false add_action
 
-    sdl_free(base_path);
+    system_free(base_path);
 
     editor_update_page_tabs(e);
+    //@bug @note have to sort children manually now
+    entity_sort_children(e->root);
     return p;
 }
 void dtor_page_tab(page_tab *p)
@@ -388,7 +391,7 @@ editor *ctor_editor()
     char *adjpath=str_cat(base_path,"../script/icon/OTE.ico");
     window_set_icon(e->win,adjpath);
     free(adjpath);
-    sdl_free(base_path);
+    system_free(base_path);
 
     window_set_position(e->win,100,100);
     flush_events(MOUSE_EVENTS);
@@ -836,7 +839,7 @@ s32 editor_handle_keys(editor *e, event ev)
                     free(temp);
                 }
             }
-            write_file_cstr(e->current_page_tab->file_path,str);
+            str_to_file(e->current_page_tab->file_path,str);
             free(str);
 
             //what should we do if we have no actions and they save? how to track action_list_index? need to at all?
@@ -903,7 +906,7 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             char *sdl_clip=get_clipboard_text();
             char *clip=strcpy(malloc(strlen(sdl_clip)+1),sdl_clip);
-            sdl_free(sdl_clip);
+            system_free(sdl_clip);
             if(clip)
             {
                 editor_add_text(e,clip,true);
@@ -1296,13 +1299,13 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
         char *curline=editor_get_line(focused_editor,y);
         if(begin.y==end.y)
         {
-            char *first=malloc_str_slice(curline, 0, begin.x-1);
+            char *first=alloc_str_slice(curline, 0, begin.x-1);
             
-            char *second=malloc_str_slice(curline, end.x, strlen(curline)-1);
+            char *second=alloc_str_slice(curline, end.x, strlen(curline)-1);
 
             if(do_add_action)
             {
-                built_string=malloc_str_slice(curline,begin.x,end.x-1);
+                built_string=alloc_str_slice(curline,begin.x,end.x-1);
             }
 
             editor_set_line(focused_editor,y,str_cat(first,second));
@@ -1314,16 +1317,16 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
         }
         else if(y==begin.y)
         {
-            first_line=malloc_str_slice(curline,0,begin.x-1);
+            first_line=alloc_str_slice(curline,0,begin.x-1);
             if(do_add_action)
             {
-                built_string=malloc_str_slice(curline,begin.x,strlen(curline)-1);
+                built_string=alloc_str_slice(curline,begin.x,strlen(curline)-1);
             }
         }
         else if(y==end.y)
         {
             u32 i;
-            last_line=malloc_str_slice(curline,end.x,strlen(curline)-1);
+            last_line=alloc_str_slice(curline,end.x,strlen(curline)-1);
 
             if(do_add_action)
             {
@@ -1331,7 +1334,7 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
                 built_string=str_cat(built_string,"\n");
                 free(temp);
                 temp=built_string;
-                built_string=str_cat(built_string,malloc_str_slice(curline,0,end.x-1));
+                built_string=str_cat(built_string,alloc_str_slice(curline,0,end.x-1));
                 free(temp);
             }
 
@@ -1409,10 +1412,10 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
         {                                 
             u32 next_line_splice_start=focused_editor->current_page_tab->cursor_x;
             u32 next_line_splice_end=strlen(editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y))-1;
-            editor_insert_line(focused_editor,focused_editor->current_page_tab->cursor_y+1,malloc_str_slice(editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y),next_line_splice_start,next_line_splice_end));
+            editor_insert_line(focused_editor,focused_editor->current_page_tab->cursor_y+1,alloc_str_slice(editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y),next_line_splice_start,next_line_splice_end));
             
             char *temp=editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y);
-            editor_set_line(focused_editor,focused_editor->current_page_tab->cursor_y,malloc_str_slice(temp,0,focused_editor->current_page_tab->cursor_x-1));
+            editor_set_line(focused_editor,focused_editor->current_page_tab->cursor_y,alloc_str_slice(temp,0,focused_editor->current_page_tab->cursor_x-1));
             free(temp);
 
             editor_set_cursor_position(focused_editor,0,focused_editor->current_page_tab->cursor_y+1);
@@ -1473,7 +1476,7 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
         u32 row_strlen=strlen(curline);
         for(i=0; i<row_strlen; i++)
         {
-            char *slice=malloc_str_slice(curline, 0, i);
+            char *slice=alloc_str_slice(curline, 0, i);
             size_ttf_font(focused_editor->current_page_tab->font,slice,&w,&h);
             free(slice);
             
@@ -1484,7 +1487,7 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
                     s32 dist2=0;/*distance to the character that passes the mouse*/
                     s32 dist=0;/*distance to the previous character to dist2*/
 
-                    char *slice2=malloc_str_slice(curline,0,i-1);
+                    char *slice2=alloc_str_slice(curline,0,i-1);
                     size_ttf_font(focused_editor->current_page_tab->font,slice2,&dist,0);
                     free(slice2);
 
@@ -1548,12 +1551,12 @@ char *editor_get_text(editor *focused_editor,vec2 begin, vec2 end)
 
         if(begin.y==end.y)
         {
-            retval=malloc_str_slice(curline,begin.x,end.x);
+            retval=alloc_str_slice(curline,begin.x,end.x);
             break;
         }
         else if(y==begin.y)
         {
-            retval=malloc_str_slice(curline,begin.x,strlen_curline-1);
+            retval=alloc_str_slice(curline,begin.x,strlen_curline-1);
         }
         else if(y==end.y)
         {
@@ -1561,7 +1564,7 @@ char *editor_get_text(editor *focused_editor,vec2 begin, vec2 end)
             retval=str_cat(retval,"\n");
             free(temp);
             temp=retval;
-            retval=str_cat(retval,malloc_str_slice(curline,0,end.x));            
+            retval=str_cat(retval,alloc_str_slice(curline,0,end.x));            
             free(temp);
         }
         else

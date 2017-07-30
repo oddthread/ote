@@ -2,9 +2,10 @@
 #maps strings to a string
 #strings are separated by whitespace
 #can include whitespace and all the normal stuff in c string 
-#have to escape escape character (\), quotes
 #first word on every line is the string the list is mapped to
 #can have it on multiple lines and they will be concated
+
+#@todo have to escape space, newline, tab, etc. (no strings, just escape stuff)
 
 extensions: c h
 
@@ -12,13 +13,13 @@ background: 0 0 0
 
 default: 255 255 255
 
-operators: ~ !  %  ^  &  *  (  )  -  =  +  [  ]  ; : ' \" , < . > / ? |
+operators: ~ !  %  ^  &  *  (  )  -  =  +  [  ]  ; : ' " , < . > / ? |
 operators_color: 255 0 0
 
-types: void const register unsigned signed char short int long float double auto
-types: u8 u16 u32 u64 s8 s16 s32 s64
+types: void const register unsigned signed char short int long float double auto u8 u16 u32 u64 s8 s16 s32 s64
 types_color: 0 255 0
 
-keywords: struct break else switch case enum typedef extern return union
-keywords: continue for default goto sizeof volatile do if static while
+keywords: struct break else switch case enum typedef extern return union continue for default goto sizeof volatile do if static while
 keywords_color: 0 0 255
+
+ 

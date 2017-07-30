@@ -118,7 +118,7 @@ s32 delegate_event_window(global_state *gs)
         if(gs->e.type==DROP_FILE)
         {
             ctor_page_tab(gs->focused_editor,gs->e.str);
-            sdl_free(gs->e.str);
+            system_free(gs->e.str);
         } 
     }
     return 0;

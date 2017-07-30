@@ -4015,7 +4015,7 @@
 ==16947== 
 ==16947== 1 bytes in 1 blocks are indirectly lost in loss record 2 of 829
 ==16947==    at 0x4C28C20: malloc (vg_replace_malloc.c:296)
-==16947==    by 0x4034CB: malloc_str_slice (util.c:69)
+==16947==    by 0x4034CB: alloc_str_slice (util.c:69)
 ==16947==    by 0x40686E: delete_text (editor.c:200)
 ==16947==    by 0x40A1EA: handle_event (event_handler.c:707)
 ==16947==    by 0x4050A4: main (OTE.c:17)
@@ -8396,7 +8396,7 @@
 ==16947== 
 ==16947== 101 bytes in 10 blocks are indirectly lost in loss record 401 of 829
 ==16947==    at 0x4C28C20: malloc (vg_replace_malloc.c:296)
-==16947==    by 0x4034F3: malloc_str_slice (util.c:74)
+==16947==    by 0x4034F3: alloc_str_slice (util.c:74)
 ==16947==    by 0x407017: add_text (editor.c:319)
 ==16947==    by 0x4098E7: handle_event (event_handler.c:507)
 ==16947==    by 0x4050A4: main (OTE.c:17)

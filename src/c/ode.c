@@ -1,7 +1,9 @@
 #include "../h/base.h"
 #include "../h/event_delegator.h"
-#include "opl/src/h/util.h"
+
 #include "opl/src/h/system.h"
+
+#include "oul/src/h/oul.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +38,7 @@ int main(int argc, char **argv)
             editor_draw(gs->editors[i]);
         }
 
-        if(0)//milli_current_time()-frame_time_stamp<1000.0f/60.0f)
+        if(milli_current_time()-frame_time_stamp<1000.0f/60.0f)
         {
             s32 sleep_time=1000.0f/60.0f-(milli_current_time()-frame_time_stamp);
             if(sleep_time>0)

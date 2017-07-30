@@ -1,7 +1,7 @@
 #ifndef d_text_selection_h
 #define d_text_selection_h
 
-#include "opl/src/h/util.h"
+#include "oul/src/h/oul.h"
 
 typedef struct editor editor;
 

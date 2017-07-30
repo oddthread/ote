@@ -1,6 +1,7 @@
 #include "osg/src/h/osg.h"
 
-#include "opl/src/h/util.h"
+#include "oul/src/h/oul.h"
+
 #include "opl/src/h/system.h"
 
 #include "ode/src/h/editor.h"
@@ -30,7 +31,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
     
     char *base_path=get_base_path();
     char *adjpath=str_cat(base_path,"res/blue.png");
-    sdl_free(base_path);
+    system_free(base_path);
     texture *tex=ctor_texture(editor_get_window(focused_editor), adjpath);
     free(adjpath);
     t->ir=ctor_image_renderer(editor_get_window(focused_editor),tex);
@@ -56,7 +57,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             
             u32 w;
             u32 h;
-            char *splice=malloc_str_slice(curline, start_position.x, end_position.x);
+            char *splice=alloc_str_slice(curline, start_position.x, end_position.x);
             size_ttf_font(editor_get_font(focused_editor), splice, &w, &h);
             
             //printf("curline: %s,start: %d,end: %d, splice: %s, size_x: %d, size_y: %d, \n",curline,(int)start_position.x,(int)end_position.x,splice,w,h);
@@ -64,7 +65,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
 
             u32 w2;
             u32 h2;
-            char *splice2=malloc_str_slice(curline, 0, start_position.x-1);
+            char *splice2=alloc_str_slice(curline, 0, start_position.x-1);
             size_ttf_font(editor_get_font(focused_editor), splice2, &w2, &h2);
             free(splice2);
 
@@ -84,13 +85,13 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
         {
             u32 w;
             u32 h;
-            char *splice=malloc_str_slice(curline, start_position.x, strlen_curline-1);
+            char *splice=alloc_str_slice(curline, start_position.x, strlen_curline-1);
             size_ttf_font(editor_get_font(focused_editor), splice, &w, &h);
             free(splice);
             
             u32 w2;
             u32 h2;
-            char *splice2=malloc_str_slice(curline, 0, start_position.x-1);
+            char *splice2=alloc_str_slice(curline, 0, start_position.x-1);
             size_ttf_font(editor_get_font(focused_editor), splice2, &w2, &h2);
             free(splice2);
 
@@ -108,7 +109,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
         {
             u32 w;
             u32 h;
-            char *splice=malloc_str_slice(curline, 0, end_position.x);
+            char *splice=alloc_str_slice(curline, 0, end_position.x);
             size_ttf_font(editor_get_font(focused_editor), splice, &w, &h);
             free(splice);
 
@@ -126,7 +127,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
         {
             u32 w;
             u32 h;
-            char *splice=malloc_str_slice(curline, 0, strlen(curline));
+            char *splice=alloc_str_slice(curline, 0, strlen(curline));
             size_ttf_font(editor_get_font(focused_editor), splice, &w, &h);
             free(splice);
 
