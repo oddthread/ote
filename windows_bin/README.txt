@@ -1,0 +1,1 @@
+To change your username open res/config.txt and change the tag after the username tag.
