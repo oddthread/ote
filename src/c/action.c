@@ -1,5 +1,5 @@
-#include "ode/src/h/editor.h"
-#include "ode/src/h/action.h"
+#include "ote/src/h/editor.h"
+#include "ote/src/h/action.h"
 
 #include <stdlib.h>
 #include <string.h>

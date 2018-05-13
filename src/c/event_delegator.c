@@ -1,8 +1,8 @@
 #include "opl/src/h/graphics.h"
 #include "opl/src/h/system.h"
 
-#include "ode/src/h/event_delegator.h"
-#include "ode/src/h/base.h"
+#include "ote/src/h/event_delegator.h"
+#include "ote/src/h/base.h"
 
 #include <stdlib.h>
 #include <string.h>

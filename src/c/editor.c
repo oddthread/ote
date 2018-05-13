@@ -1,6 +1,6 @@
-#include "ode/src/h/base.h"
-#include "ode/src/h/action.h"
-#include "ode/src/h/editor.h"
+#include "ote/src/h/base.h"
+#include "ote/src/h/action.h"
+#include "ote/src/h/editor.h"
 
 #include "oul/src/h/oul.h"
 #include "opl/src/h/input.h"

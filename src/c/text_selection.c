@@ -4,7 +4,7 @@
 
 #include "opl/src/h/system.h"
 
-#include "ode/src/h/editor.h"
+#include "ote/src/h/editor.h"
 
 #include <stdlib.h>
 #include <string.h>

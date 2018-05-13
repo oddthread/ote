@@ -1,7 +1,7 @@
 #ifndef d_event_delegator_h
 #define d_event_delegator_h
 
-#include "ode/src/h/editor.h"
+#include "ote/src/h/editor.h"
 
 #include "opl/src/h/input.h"
 

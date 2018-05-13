@@ -1,9 +1,9 @@
 #ifndef d_editor_h
 #define d_editor_h
 
-#include "ode/src/h/base.h"
-#include "ode/src/h/action.h"
-#include "ode/src/h/text_selection.h"
+#include "ote/src/h/base.h"
+#include "ote/src/h/action.h"
+#include "ote/src/h/text_selection.h"
 
 #include "osg/src/h/osg.h"
 
