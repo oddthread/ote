@@ -16,6 +16,10 @@ typedef struct editor editor;
 editor *ctor_editor();
 void dtor_editor(editor *e);
 
+bool editor_find(editor *e, char *str);
+bool editor_replace(editor *e, char *old, char *new);
+bool editor_replace_all(editor *e, char *old, char *new);
+
 void editor_set_current_page_tab(editor *e, page_tab *p);
 page_tab *editor_get_current_page_tab(editor *e);
 void editor_set_cursor_position(editor *e, s32 x, s32 y);

@@ -6,8 +6,11 @@
 #include "opl/src/h/input.h"
 #include "opl/src/h/system.h"
 
+#include "../h/shell.h"
+
 #include <stdlib.h>
 #include <string.h>
+
 /*@todo for editor
     clip text_selection and cursor
 
@@ -31,6 +34,13 @@
     should lock files while open or no?
 */
 
+texture *ctor_texture_file(window *w, char const *path){
+    surface *s=ctor_surface_file(path);
+    texture *t=ctor_texture(w,s);
+    dtor_surface(s);
+    return t;
+}
+
 static void editor_update_page_tabs(editor *e);
 static void editor_close_tab(editor *e, page_tab *p);
 
@@ -40,14 +50,17 @@ typedef struct page_tab
     entity *ent;
 
     entity *close_button;
+    entity *file_name;
     renderer *close_button_renderer;
+    renderer *file_name_renderer;
     texture *close_button_normal;
+    texture *file_name_tex;
     texture *close_button_hover;
 
     entity *file_text;
 
-    texture *green_tex;
-    texture *red_tex;
+    texture *tab_color_good;
+    texture *tab_color_bad;
     char *file_path;//if NULL working with a new buffer
 
     color font_color;
@@ -58,7 +71,6 @@ typedef struct page_tab
     bool start_selection_key;
     bool wheel_override;
 
-    entity *overlay_line;
     action **action_list;
     s32 action_list_size;
     s32 action_list_index;
@@ -87,10 +99,11 @@ typedef struct page_tab
     s64 held_key_time_stamp;
     vec2 offset;
 } page_tab;
+
 typedef struct editor
 {   
     entity *highest;
-
+    
     bool is_fullscreen;
     window *win;
     entity *root;
@@ -99,6 +112,17 @@ typedef struct editor
     page_tab *current_page_tab;
     page_tab **page_tabs;
     s32 page_tabs_size;
+
+    /*
+    shell UI
+    */
+    texture *shell_bg;
+    texture *shell_cursor;
+    texture *shell_start;
+    char *shell_text;
+    texture *shell_text_tex;//created every frame
+    int mode;
+    int shell_pos;
 } editor;
 
 
@@ -155,16 +179,20 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     char *spliced_str=NULL;
     if(x==0)
     {//str_slice returns null or something if the end and begin are the same index, and ttf_size_text has undefined behavior if string is null
-        spliced_str=strcpy(malloc(1),"");
+        spliced_str=strcpy(malloc(2),"_");
+
+        size_ttf_font(e->current_page_tab->font,spliced_str,&width,&height);
+        
+        entity_set_position(e->current_page_tab->cursor,value_vec2(0,height*y));
     }
     else
     {
         spliced_str=alloc_str_slice(editor_get_line(e,y),0,x-1);
+
+        size_ttf_font(e->current_page_tab->font,spliced_str,&width,&height);
+        
+        entity_set_position(e->current_page_tab->cursor,value_vec2(width,height*y));
     }
-    
-    size_ttf_font(e->current_page_tab->font,spliced_str,&width,&height);
-    
-    entity_set_position(e->current_page_tab->cursor,value_vec2(width,height*y));
 
     if(spliced_str)
     {
@@ -174,6 +202,8 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
 
 page_tab *ctor_page_tab(editor *e, char *filepath)
 {    
+    create_empty_file_if_not_exists(filepath);
+
     //roots are ent and text_holder
     page_tab *p=malloc(sizeof(page_tab));
     memset(p,0,sizeof(page_tab));
@@ -186,20 +216,20 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
 
     char *base_path=get_base_path();
 
-    char *adjpath=str_cat(base_path,"res/close.png");
+    char *adjpath=str_cat(base_path,"../res/close.png");
     //@todo make these entities and implement editor_close_tab
     p->close_button=ctor_entity(p->ent);
     
-    p->close_button_normal=ctor_texture(e->win,adjpath);
+    p->close_button_normal=ctor_texture_file(e->win,adjpath);
     free(adjpath);
-    adjpath=str_cat(base_path,"res/close_hover.png");
-    p->close_button_hover=ctor_texture(e->win,adjpath);
+    adjpath=str_cat(base_path,"../res/close_hover.png");
+    p->close_button_hover=ctor_texture_file(e->win,adjpath);
     free(adjpath);
     
-    p->close_button_renderer=(renderer*)ctor_image_renderer(e->win,p->close_button_normal);
+    p->close_button_renderer=(renderer*)ctor_image_renderer(e->win,p->close_button_normal,NULL);
     entity_add_renderer(p->close_button,p->close_button_renderer);
     
-    entity_set_size(p->close_button, value_vec2(25,25));
+    entity_set_size(p->close_button, value_vec2(10,10));
     entity_set_relpos(p->close_button,value_vec2(1,.5));
     entity_set_relposme(p->close_button,value_vec2(-1,-.5));
     entity_set_position(p->close_button,value_vec2(-25/2,0));
@@ -220,14 +250,15 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity_set_order(button_holder,999);
 
 
-    adjpath=str_cat(base_path,"res/red.png");
-    p->red_tex=ctor_texture(e->win,adjpath);
-    free(adjpath);
-    adjpath=str_cat(base_path,"res/green.png");
-    p->green_tex=ctor_texture(e->win,adjpath);
-    free(adjpath);
+    color whitecolor={255,255,255,255};
+    color redcolor={255,0,0,255};
+
+    p->tab_color_bad=ctor_texture_pixels(e->win,&redcolor,1,1);
     
-    p->ent_renderer=(renderer*)ctor_image_renderer(e->win,p->green_tex);
+    p->tab_color_good=ctor_texture_pixels(e->win,&whitecolor,1,1);
+    
+    
+    p->ent_renderer=(renderer*)ctor_image_renderer(e->win,p->tab_color_good,NULL);
     entity_add_renderer(button_holder,(renderer*)p->ent_renderer);
     
     d_append(e->page_tabs,e->page_tabs_size,p);
@@ -237,18 +268,8 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity_set_relsize(p->text_holder, value_vec2(1,1));
     entity_set_visible(p->text_holder, false);
     //entity_set_relpos(e->current_page_tab->text_holder, value_vec2(0,0));
+
     
-
-    p->overlay_line=ctor_entity(e->root);
-    entity_set_order(p->overlay_line,998);
-    adjpath=str_cat(base_path,"res/green.png");
-    texture *green_tex=ctor_texture(e->win,adjpath);
-    free(adjpath);
-    entity_add_renderer(p->overlay_line,(renderer*)ctor_image_renderer(e->win,green_tex));
-    entity_set_relsize(p->overlay_line,value_vec2(0,1));
-    entity_set_size(p->overlay_line,value_vec2(1,0));
-    entity_set_position(p->overlay_line,value_vec2(-offset_margin/2,0));
-
     memset(&p->keystate,0,sizeof(p->keystate));
 
     p->cursor_blink_state=true;
@@ -272,7 +293,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     entity_set_relsize(p->text_entity, value_vec2(1,1));
     entity_set_order(p->text_entity,100);
 
-    p->font_color=value_color(0,255,0,255);
+    p->font_color=value_color(255,255,255,255);
 
     char **c=malloc(sizeof(char*));
     c[0]=strcpy(malloc(strlen("")+1),"");
@@ -290,8 +311,8 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     
     entity_set_size(p->cursor,value_vec2(2,global_font_size));//@todo size text and set to actual render size, in addition to rendering cursor in code multicolor support etc, have to size text width to move cursor anyway
     
-    adjpath=str_cat(base_path,"res/cursor.png");
-    entity_add_renderer(p->cursor,(renderer*)ctor_image_renderer(e->win,ctor_texture(e->win,adjpath)));
+    adjpath=str_cat(base_path,"../res/cursor.png");
+    entity_add_renderer(p->cursor,(renderer*)ctor_image_renderer(e->win,ctor_texture_file(e->win,adjpath),NULL));
     free(adjpath);
 
     p->cursor_x=0;
@@ -299,6 +320,8 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     
     adjpath=str_cat(base_path,(char*)global_font_url);
     p->font=ctor_ttf_font(adjpath,global_font_size);
+
+    ttf_font *fn_font=ctor_ttf_font(adjpath,12);
     free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
     text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left");
@@ -309,6 +332,24 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     p->start_selection_mouse=false;
     p->start_selection_key=false;
 
+    {/*file name entity*/
+        p->file_name=ctor_entity(p->ent);
+        entity_set_solid(p->file_name,false);
+        color black_color={0,0,0,255};
+        p->file_name_tex=ctor_texture_font(e->win,fn_font,filepath,black_color);
+    
+        p->file_name_renderer=(renderer*)ctor_image_renderer(e->win,p->file_name_tex,NULL);
+        entity_add_renderer(p->file_name,p->file_name_renderer);
+        int fn_h,fn_w;
+        size_ttf_font(fn_font,filepath,&fn_w,&fn_h);
+        
+        entity_set_size(p->file_name, value_vec2(fn_w,fn_h));
+        entity_set_relpos(p->file_name,value_vec2(.5,.5));
+        entity_set_relposme(p->file_name,value_vec2(-.5,-.5));
+
+        dtor_ttf_font(fn_font);
+    }
+
     editor_set_current_page_tab(e,p);
     editor_add_text(e,alloc_file_to_str(filepath),false);//@leak can free here since false add_action
 
@@ -317,6 +358,9 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     editor_update_page_tabs(e);
     //@bug @note have to sort children manually now
     entity_sort_children(e->root);
+    
+    editor_set_cursor_position(e, 0, 0);
+    
     return p;
 }
 void dtor_page_tab(page_tab *p)
@@ -331,8 +375,7 @@ void dtor_page_tab(page_tab *p)
     free(p->action_list);
     dtor_entity(p->ent);
     dtor_entity(p->text_holder);
-    dtor_entity(p->overlay_line);
-    //@todo fix this
+    //@todo @leak free all textures, renderers, etc.
     //dtor_ttf_font(p->font);
     //dtor_text_block_renderer(p->tbr);
 }
@@ -377,7 +420,9 @@ static void editor_close_tab(editor *e, page_tab *p)
 editor *ctor_editor()
 {
     editor *e=(editor*)malloc(sizeof(editor));
-    e->win=ctor_window("Odd Thread Editor", 1000, 1000);
+
+
+    e->win=ctor_window("ote", 800, 450);
     e->root=ctor_entity(NULL);
     e->current_page_tab=NULL;
     e->highest=NULL;
@@ -386,9 +431,24 @@ editor *ctor_editor()
     e->mouse_dirty=false;
     e->is_fullscreen=false;//assumes windows start in windowed mode
 
+    e->mode=0;
+    color shell_bg_color={255,255,255,255};
+    e->shell_bg=ctor_texture_pixels(e->win,&shell_bg_color,1,1);
+    if(0){
+        e->shell_text="> replace \"asd\",\"asd2\"";
+    }
+    else{
+        e->shell_text=malloc(1);
+        e->shell_text[0]=0;
+    }
+    e->shell_text_tex=NULL;
+    e->shell_pos=0;
+    color black2={0,0,0,255};
+    e->shell_cursor=ctor_texture_pixels(e->win,&black2,1,1);
+    e->shell_start=NULL;
 
     char *base_path=get_base_path();
-    char *adjpath=str_cat(base_path,"../script/icon/OTE.ico");
+    char *adjpath=str_cat(base_path,"../script/icon/OTE.png");
     window_set_icon(e->win,adjpath);
     free(adjpath);
     system_free(base_path);
@@ -409,15 +469,94 @@ void dtor_editor(editor *e)
     //this has to be after dtor_page_tab because it holds references to entities that it frees explicitly
     dtor_entity(e->root);/*@todo implement this function and it should free all children*/
 
+    if(e->shell_bg){
+        dtor_texture(e->shell_bg);
+    }
+    if(e->shell_text){
+        free(e->shell_text);
+    }
+    if(e->shell_text_tex){
+        dtor_texture(e->shell_text_tex);
+    }
+    if(e->shell_cursor){
+        dtor_texture(e->shell_cursor);
+    }
+    if(e->shell_start){
+        dtor_texture(e->shell_start);
+    }
+
     free(e);
 }
-    
+
+vec2 editor_find_starting_at(editor *e, char *str, int x, int y){
+    page_tab *pt=e->current_page_tab;
+    int i;
+    int j=x;
+    int strlen_str=strlen(str);
+    for(i=y; i<pt->lines_size; i++){
+        for(;pt->lines[i][j];j++){
+            char *check=alloc_str_slice(pt->lines[i],j,j+strlen_str-1);
+            printf("editor_find - check, str, check==str: %s,%s,%d\n",check,str,str_eq(check,str));
+            if(str_eq(check,str)){
+                printf("editor_find - set cursor pos: %d,%d\n",i,j+strlen_str);
+                editor_set_cursor_position(e,j+strlen_str,i);
+                free(check);
+                return value_vec2(j,i);
+            }
+            else{
+                free(check);
+            }
+        }
+        j=0;
+    }
+    return value_vec2(-1,-1);
+}
+bool editor_find(editor *e, char *str){
+    page_tab *pt=e->current_page_tab;
+    vec2 pos=editor_find_starting_at(e,str,pt->cursor_x,pt->cursor_y);
+
+    /*search wrap*/
+    if(pos.x==-1){
+        pos=editor_find_starting_at(e,str,0,0);
+    }
+
+    return pos.x!=-1;
+}
+bool editor_replace(editor *e, char *old, char *new){
+    page_tab *pt=e->current_page_tab;
+    vec2 pos=editor_find_starting_at(e,old,pt->cursor_x,pt->cursor_y);
+
+    /*search wrap*/
+    if(pos.x==-1){
+        pos=editor_find_starting_at(e,old,0,0);
+    }
+
+    if(pos.x!=-1){
+        vec2 end;
+        
+        end.x=pos.x+strlen(old);
+        end.y=pos.y;
+        
+        editor_delete_text(e,pos,end,true,ACTION_DELETE);
+        editor_set_cursor_position(e,pos.x,pos.y);
+        editor_add_text(e, strcpy(malloc(strlen(new)+1),new) ,true);
+        return true;
+    }
+    return false;
+}
+bool editor_replace_all(editor *e, char *old, char *new){
+    bool found_any=false;
+    while(editor_replace(e,old,new)){
+        found_any=true;
+    }
+    return found_any;
+}
+
 void editor_set_current_page_tab(editor *e, page_tab *p)
 {
     if(e->current_page_tab)
     {
         entity_set_visible(e->current_page_tab->text_holder,false);
-        entity_set_visible(e->current_page_tab->overlay_line,false);
     }
     e->current_page_tab=p;
 
@@ -428,7 +567,6 @@ void editor_set_current_page_tab(editor *e, page_tab *p)
     entity_set_alpha(p->ent,standard_button_selected_alpha);
     
     entity_set_visible(e->current_page_tab->text_holder,true);
-    entity_set_visible(e->current_page_tab->overlay_line,true);
 }
 page_tab *editor_get_current_page_tab(editor *e)
 {
@@ -485,17 +623,17 @@ void editor_update(editor *e_instance)
         //there is no valid action list_index, so the file is unmodified (a full undo has happened perhaps)
         if(pt->action_list_index<=0)
         {
-            image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->green_tex);
+            image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tab_color_good);
         }
         else if(pt->action_list_size)
         {            
             if(pt->action_on_save==pt->action_list[pt->action_list_index]->uid)
             {
-                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->green_tex);
+                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tab_color_good);
             }
             else
             {
-                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->red_tex);
+                image_renderer_set_texture((image_renderer*)e_instance->current_page_tab->ent_renderer,e_instance->current_page_tab->tab_color_bad);
             }
         }
 
@@ -506,7 +644,9 @@ void editor_update(editor *e_instance)
             s32 size_height;
             itoa(pt->lines_size,buffer,10);
             size_ttf_font(pt->font,buffer,&size_width,&size_height);
-            global_text_margin=size_width+offset_margin;
+            if(size_width+offset_margin > global_text_margin){
+                global_text_margin=size_width+offset_margin;   
+            }
         }
         
         if(pt->cursor_blink_timer>500)
@@ -547,7 +687,6 @@ void editor_update(editor *e_instance)
             }
         }
 
-        entity_set_position(pt->overlay_line,value_vec2(-offset_margin/2+global_text_margin,0));
         
         vec2 v;
         v.x=pt->offset.x;
@@ -555,10 +694,87 @@ void editor_update(editor *e_instance)
         entity_set_position(pt->text_holder,v);   
     }
 }
+void draw_shell(editor *e_instance){
+
+    if(e_instance->shell_text_tex){
+        dtor_texture(e_instance->shell_text_tex);
+        e_instance->shell_text_tex=NULL;
+    }
+    if(e_instance->shell_start){
+        
+        dtor_texture(e_instance->shell_start);
+        e_instance->shell_start=NULL;
+    }
+
+    if(e_instance->mode){/*draw shell UI*/
+        int win_w,win_h;
+        window_get_size(e_instance->win,&win_w,&win_h);
+        
+        rect bgdest;
+        bgdest.x=0;
+        bgdest.y=0;
+        bgdest.w=win_w;
+
+        int shw,shh;
+        rect textrect;
+        textrect.y=0;
+        textrect.w=0;
+        textrect.h=0;
+        
+
+        color shelltextcolor={0,0,0,255};
+
+        int single_shw,single_shh;
+
+        size_ttf_font(e_instance->current_page_tab->font,">",&single_shw,&single_shh);
+
+        e_instance->shell_start=ctor_texture_font(e_instance->win,e_instance->current_page_tab->font,">",shelltextcolor);
+        int margin=single_shh/8;
+        rect shell_start;
+        shell_start.x=margin;
+        shell_start.y=0;
+        shell_start.w=single_shw;
+        shell_start.h=single_shh;
+
+        textrect.x=shell_start.x+shell_start.w+margin;
+
+
+        bgdest.h=single_shh;
+
+        if(e_instance->shell_text && strlen(e_instance->shell_text)){
+
+            e_instance->shell_text_tex=ctor_texture_font(e_instance->win,e_instance->current_page_tab->font,e_instance->shell_text,shelltextcolor);
+            
+            size_ttf_font(e_instance->current_page_tab->font,e_instance->shell_text,&shw,&shh);
+            
+            textrect.y=0;
+            textrect.w=shw;
+            textrect.h=shh;
+        }
+        
+        draw_texture(e_instance->win,e_instance->shell_bg,&bgdest,0,NULL,NULL,NULL);     
+        
+        draw_texture(e_instance->win,e_instance->shell_start,&shell_start,0,NULL,NULL,NULL);     
+        
+        if(e_instance->shell_text){
+            draw_texture(e_instance->win,e_instance->shell_text_tex,&textrect,0,NULL,NULL,NULL);
+        }
+
+        int cursor_margin=2;
+        rect cursor_rect;
+        cursor_rect.x=textrect.x+(single_shw*e_instance->shell_pos);
+        cursor_rect.y=cursor_margin/2;
+        cursor_rect.w=single_shw;
+        cursor_rect.h=single_shh-cursor_margin;
+        
+        draw_texture(e_instance->win,e_instance->shell_cursor,&cursor_rect,0,NULL,NULL,NULL);
+    }
+}
 void editor_draw(editor *e_instance)
 {
     clear(e_instance->win);
     render_entity_recursive(e_instance->root);
+    draw_shell(e_instance);
     flip(e_instance->win);
 }
 
@@ -655,7 +871,7 @@ void editor_handle_mouse_motion(editor *e, vec2 mouse_position)
     
     if(e->page_tabs_size)
     {
-        if(mouse_position.x<=global_text_margin)
+        if(mouse_position.x<=global_text_margin-10)
         {
             for(i=0; i<e->page_tabs_size; i++)
             {
@@ -679,12 +895,14 @@ void editor_handle_mouse_motion(editor *e, vec2 mouse_position)
 }
 void editor_handle_mouse_wheel(editor *e, r32 mousewheel)
 {
+    /*disabled for now, super wonky
     e->current_page_tab->offset.y-=mousewheel*(entity_get_render_size(e->current_page_tab->cursor).y)*5;
     e->current_page_tab->wheel_override=true;
+    */
 }
 void editor_handle_left_mouse_up(editor *e)
 {
-    e->current_page_tab->start_selection_mouse=false;       
+    e->current_page_tab->start_selection_mouse=false;
 }
 bool editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
 {
@@ -708,7 +926,7 @@ bool editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
     }
     
     /*
-        MUST RESET TEXT_SELECTION_ORIGIN AND END BEFORE CALL TO SET_CURSOR_POSITION BECAUSE:
+    MUST RESET TEXT_SELECTION_ORIGIN AND END BEFORE CALL TO SET_CURSOR_POSITION BECAUSE:
     IT WILL USE THAT TO CTOR THE NEXT TEXT_SELECTION ZZZ
     */
     vec2 cursor_position=editor_position_to_cursor(e,vec2_sub(mouse_position,e->current_page_tab->offset));
@@ -718,15 +936,15 @@ bool editor_handle_left_mouse_down(editor *e, vec2 mouse_position)
     e->current_page_tab->current_text_selection=ctor_text_selection(mouse_position,mouse_position,e);
     
     editor_set_cursor_position(e, cursor_position.x, cursor_position.y);
-
-
+    
     e->current_page_tab->start_selection_mouse=true;
     e->current_page_tab->start_selection_key=false;
+    
     return false;
 }
 bool editor_process_keys(editor *e, event ev)
 {
-    if(e->highest != e->root)return false;
+    /*if(e->highest != e->root)return false;*/
 
     bool key_is_already_pressed=false;
     u32 i;
@@ -786,7 +1004,8 @@ bool editor_process_keys(editor *e, event ev)
         e->current_page_tab->keystate.ctrl_pressed=false;
         for(u32 i=0; i<e->current_page_tab->keystate.pressed_keys_size; i++)
         {
-            if(e->current_page_tab->keystate.pressed_keys[i]==KEY_LEFT_CONTROL || e->current_page_tab->keystate.pressed_keys[i]==KEY_RIGHT_CONTROL)
+            if(e->current_page_tab->keystate.pressed_keys[i]==KEY_LEFT_CONTROL || e->current_page_tab->keystate.pressed_keys[i]==KEY_RIGHT_CONTROL
+                || e->current_page_tab->keystate.pressed_keys[i]==KEY_LGUI || e->current_page_tab->keystate.pressed_keys[i]==KEY_RGUI)
             {
                 e->current_page_tab->keystate.ctrl_pressed=true;
                 break;
@@ -804,228 +1023,116 @@ dtor_text_selection(e);\
 e->current_page_tab->current_text_selection=NULL;\
 e->current_page_tab->start_selection_mouse=false;
 
-s32 editor_handle_keys(editor *e, event ev)
-{
-    s32 exit_code=0;
-    if(e->highest != e->root)return exit_code;
-    
-    /*ACTUAL KEY HANDLING STARTS HERE*/
-    if(e->current_page_tab->keystate.ctrl_pressed)
-    {
-        /*@todo make these rebindable*/
         
-        /*open*/
-        if(ev.type==KEY_O)
-        {
+#define d_shift_check if(e->current_page_tab->current_text_selection && !(get_mod_state() & KEY_MOD_SHIFT))\
+{\
+    dtor_text_selection(e);\
+    e->current_page_tab->current_text_selection=NULL;\
+    e->current_page_tab->start_selection_mouse=false;\
+    e->current_page_tab->start_selection_key=false;\
+}
 
-        }
-        /*save*/
-        if(ev.type==KEY_S)
+static void on_key_page_down(editor *e)
+{
+    d_shift_check                  
+    editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y+LINES_ON_PAGE_DOWNUP);
+}
+static void on_key_page_up(editor *e)
+{
+    d_shift_check
+    editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y-LINES_ON_PAGE_DOWNUP);
+}
+static void on_key_home(editor *e)
+{
+
+    d_shift_check
+    char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
+    u32 last_character=0;
+
+    if(strlen(curline))
+    {
+        for(s32 i=e->current_page_tab->cursor_x-1; i>=0; i--)
         {
-            char *str=malloc(1);
-            str[0]=0;
-            char *newlinestr=malloc(2);
-            newlinestr[0]='\n';
-            newlinestr[1]=0;
-            for(u32 i=0; i<e->current_page_tab->lines_size; i++)
+            if(curline[i] != ' ')
             {
-                char *temp=str;
-                str=str_cat(str,e->current_page_tab->lines[i]);
-                free(temp);
-                if(i<e->current_page_tab->lines_size-1)
-                {
-                    temp=str;
-                    str=str_cat(str,newlinestr);
-                    free(temp);
-                }
-            }
-            str_to_file(e->current_page_tab->file_path,str);
-            free(str);
-
-            //what should we do if we have no actions and they save? how to track action_list_index? need to at all?
-            if(e->current_page_tab->action_list_size && e->current_page_tab->action_list_index>0)
-            {
-                e->current_page_tab->action_on_save=e->current_page_tab->action_list[e->current_page_tab->action_list_index]->uid;
-                image_renderer_set_texture((image_renderer*)e->current_page_tab->ent_renderer,e->current_page_tab->green_tex);
-            }
-        }
-        /*find, one for just window if pressing alt for all open windows*/
-        if(ev.type==KEY_F)
-        {
-
-        }
-        /*replace, one for just window if pressing alt for all open windows*/
-        if(ev.type==KEY_H)
-        {
-
-        }
-        /*move to token*/
-        if(ev.type==KEY_LEFT)
-        {
-
-        }
-        /*move to token*/
-        if(ev.type==KEY_RIGHT)
-        {
-
-        }
-        /*select all*/
-        if(ev.type==KEY_A)
-        {
-            if(!e->current_page_tab->current_text_selection)
-            {
-                vec2 begin=value_vec2(0,0);
-                vec2 end=value_vec2(strlen(editor_get_line(e,e->current_page_tab->lines_size-1)),e->current_page_tab->lines_size-1);
-
-                e->current_page_tab->current_text_selection=ctor_text_selection(begin, end, e);
-                e->current_page_tab->text_selection_origin=begin;
-                e->current_page_tab->text_selection_end=end;
-            }
-        }
-        /*open new window*/
-        if(ev.type==KEY_N)
-        {
-            exit_code=REQUEST_SPAWN_EDITOR;
-        }
-        if(ev.type==KEY_C)
-        {
-            if(e->current_page_tab->current_text_selection)
-            {
-                set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
-            }
-        }
-        if(ev.type==KEY_Z)
-        {
-            editor_do_action(e,true);
-        }
-        if(ev.type==KEY_Y)
-        {
-            editor_do_action(e,false);
-        }
-        if(ev.type==KEY_V)
-        {
-            char *sdl_clip=get_clipboard_text();
-            char *clip=strcpy(malloc(strlen(sdl_clip)+1),sdl_clip);
-            system_free(sdl_clip);
-            if(clip)
-            {
-                editor_add_text(e,clip,true);
-            }
-        }
-        if(ev.type==KEY_X)
-        {
-            if(e->current_page_tab->current_text_selection)
-            {
-                set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
-                d_delete_selection
+                last_character=i;
             }
         }
     }
-    else/*NON CONTROL KEY HANDLING, TEXT SELECTION DELETING KEYS*/
-    {
-        if(ev.type==KEY_DELETE)
-        {
-            if(e->current_page_tab->current_text_selection)
-            {
-                d_delete_selection
-            }
-            else
-            {
-                vec2 begin;
-                begin.x=e->current_page_tab->cursor_x;
-                begin.y=e->current_page_tab->cursor_y;
-                vec2 end;
-                end.x=e->current_page_tab->cursor_x+1;
-                end.y=e->current_page_tab->cursor_y;
 
-                
-                if(end.x>strlen(editor_get_line(e,e->current_page_tab->cursor_y)))
-                {                                    
-                    if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
-                    {
-                        end.x=0;
-                        end.y++;    
-                        editor_delete_text(e,begin,end,true, ACTION_DELETE);
-                    }
-                }
-                else
-                {
-                    editor_delete_text(e,begin,end,true,ACTION_DELETE);
-                }
+    editor_set_cursor_position(e, last_character, e->current_page_tab->cursor_y);
+}
+static void on_key_end(editor *e)
+{
+    d_shift_check
+    
+    char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
+    u32 last_character=0;
+    for(u32 i=e->current_page_tab->cursor_x; i<strlen(curline); i++)
+    {
+        if(curline[i]!=' ')
+        {
+            last_character=i+1;
+        }
+    }   
+
+    if(!last_character)
+    {
+        last_character=strlen(editor_get_line(e,e->current_page_tab->cursor_y));
+    }
+
+    editor_set_cursor_position(e, last_character, e->current_page_tab->cursor_y);
+}
+
+s32 editor_handle_keys(editor *e, event ev)
+{
+    s32 exit_code=0;
+    /*
+    if(e->highest != e->root)return exit_code;
+    */   
+    {/*global key handling*/
+        if(ev.type==KEY_F10)
+        {
+            /*global_text_margin=global_text_margin?0:1;*/
+            
+            text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
+                e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL);
+        }
+        else if(ev.type==KEY_F11)
+        {
+            e->is_fullscreen=!e->is_fullscreen;
+            window_toggle_fullscreen(e->win,e->is_fullscreen);
+        }
+    }
+
+    if(e->mode){/*shell key handling*/
+        if(ev.type==KEY_ESCAPE){
+            e->mode=0;
+            return exit_code;
+        }
+        else if(ev.type==KEY_DELETE)
+        {
+            if(e->shell_pos<strlen(e->shell_text)-1 && strlen(e->shell_text)){
+                e->shell_text=str_remove(e->shell_text,e->shell_pos+1);
             }
         }
         else if(ev.type==KEY_ENTER)
         {
-            if(e->current_page_tab->current_text_selection)
-            {
-                d_delete_selection
+            if(shell_execute(e,e->shell_text)){
+                e->mode=!e->mode;
             }
-            
-            char *indent_str=strcpy(malloc(2),"\n");
-            if(AUTO_INDENT)
-            {
-                s32 indent_str_size=2;
-                u32 i;
-                
-                s32 x=0;
-                if(e->current_page_tab->cursor_y>=0)
-                {
-                    char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
-                    x=indentation_level_spaces(editor_line);
-                }
-                for(i=0;i<x;i++)
-                {                            
-                    indent_str_size+=1;
-                    indent_str=realloc(indent_str,indent_str_size);
-                    indent_str[indent_str_size-2]=' ';
-                }
-                
-                indent_str[indent_str_size-1]=0;
-            }                    
-            editor_add_text(e, indent_str, true);                            
         }
         else if(ev.type==KEY_BACKSPACE)
         {
-            if(e->current_page_tab->current_text_selection)
-            {
-                d_delete_selection
-            }
-            else
-            {
-                vec2 begin;
-                begin.x=((s32)e->current_page_tab->cursor_x)-1;
-                begin.y=e->current_page_tab->cursor_y;
-                vec2 end;
-                end.x=e->current_page_tab->cursor_x;
-                end.y=e->current_page_tab->cursor_y;
-
-                    
-                if(begin.x<0)
-                {                           
-                    if(e->current_page_tab->cursor_y>0)
-                    {
-                        begin.x=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1));
-                        begin.y--;    
-                        editor_delete_text(e,begin,end,true,ACTION_DELETE);
-                    }
-                }
-                else
-                {
-                    editor_delete_text(e,begin,end,true,ACTION_BACKSPACE);
-                }
-                
+            if(e->shell_pos>0 && strlen(e->shell_text)){
+                e->shell_text=str_remove(e->shell_text,e->shell_pos-1);
+                e->shell_pos--;
             }
         }
         else if(ev.type >=KEY_SPACE && ev.type <= KEY_Z)
         {
-            if(e->current_page_tab->current_text_selection)
-            {
-                d_delete_selection
-            }
-
-            char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
             char char_to_insert=ev.type;
-            
+
             e->current_page_tab->keystate.shift_pressed=false;
             for(u32 i=0; i<e->current_page_tab->keystate.pressed_keys_size; i++)
             {
@@ -1044,237 +1151,455 @@ s32 editor_handle_keys(editor *e, event ev)
             {
                 char_to_insert=apply_shift(char_to_insert, false);
             }
-            
-            char *str=malloc(2);
-            str[0]=char_to_insert;
-            str[1]=0;
-            editor_add_text(e,str,true);
-            
-            if(AUTO_CURLY_BRACE)
-            {
-                if(char_to_insert=='{')
-                {
-                    
-                    if(AUTO_INDENT)
-                    {
-                        s32 indent_str_size=1;
-                        char *indent_str=malloc(indent_str_size);
-                        indent_str[0]='\n';
-                        
-                        
-                        u32 i;
 
-                        char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
-                        s32 indent_level=indentation_level_spaces(editor_line);
-                        s32 x=num_spaces_to_insert_on_tab+indent_level;
-                        for(i=0;i<x;i++)
-                        {                            
-                            indent_str_size+=1;
-                            indent_str=realloc(indent_str,indent_str_size);
-                            indent_str[indent_str_size-1]=' ';
-                        }
-                        
-                        indent_str_size+=1;
-                        indent_str=realloc(indent_str,indent_str_size);                            
-                        indent_str[indent_str_size-1]='\n';
-                        
-                        for(i=0;i<indent_level;i++)
-                        {                            
-                            indent_str_size+=1;
-                            indent_str=realloc(indent_str,indent_str_size);
-                            indent_str[indent_str_size-1]=' ';
-                        }
-                        
-                        indent_str_size+=2;
-                        indent_str=realloc(indent_str,indent_str_size);                            
-                        
-                        indent_str[indent_str_size-2]='}';
-                        indent_str[indent_str_size-1]=0;
-                        
-                        editor_add_text(e,indent_str,true);
-                        editor_set_cursor_position(e, strlen(editor_get_line(e,e->current_page_tab->cursor_y-1)), e->current_page_tab->cursor_y-1);
-                    }
-                    else
-                    {
-                        char *str=strcpy(malloc(2),"}");
-                        editor_add_text(e,str,true);
-                        editor_set_cursor_position(e, e->current_page_tab->cursor_x-1, e->current_page_tab->cursor_y);
-                    }
-                }
+            e->shell_text=str_insert(e->shell_text,char_to_insert,e->shell_pos);
+            e->shell_pos++;
+        }
+
+        if(ev.type==KEY_LEFT)
+        {
+            if(e->shell_pos>0){
+                e->shell_pos--;
             }
         }
-        else /*TEXT_SELECTION CLOSING KEYS IF SHIFT ISNT PRESSED*/
-        {                    
-            #define d_shift_check if(e->current_page_tab->current_text_selection && !(get_mod_state() & KEY_MOD_SHIFT))\
-            {\
-                dtor_text_selection(e);\
-                e->current_page_tab->current_text_selection=NULL;\
-                e->current_page_tab->start_selection_mouse=false;\
-                e->current_page_tab->start_selection_key=false;\
-            }
-            
-            if(!e->current_page_tab->current_text_selection && (get_mod_state() & KEY_MOD_SHIFT))
-            {
-                if(e->current_page_tab->current_text_selection)
-                {
-                    dtor_text_selection(e);
-                }
-                            
-                vec2 cpos=value_vec2(e->current_page_tab->cursor_x,e->current_page_tab->cursor_y);
-                e->current_page_tab->text_selection_origin=cpos;
-                e->current_page_tab->text_selection_end=cpos;             
-                e->current_page_tab->current_text_selection=ctor_text_selection(cpos,cpos,e);
-                
-                e->current_page_tab->start_selection_mouse=false;
-                e->current_page_tab->start_selection_key=true;
-            }
-            
-            if(ev.type==KEY_END)
-            {
-                d_shift_check
-                
-                char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
-                u32 last_character=0;
-                for(u32 i=e->current_page_tab->cursor_x; i<strlen(curline); i++)
-                {
-                    if(curline[i]!=' ')
-                    {
-                        last_character=i+1;
-                    }
-                }   
-
-                if(!last_character)
-                {
-                    last_character=strlen(editor_get_line(e,e->current_page_tab->cursor_y));
-                }
-
-                editor_set_cursor_position(e, last_character, e->current_page_tab->cursor_y);
-            }
-            else if(ev.type==KEY_HOME)
-            {
-                d_shift_check
-                char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
-                u32 last_character=0;
-
-                if(strlen(curline))
-                {
-                    for(s32 i=e->current_page_tab->cursor_x-1; i>=0; i--)
-                    {
-                        if(curline[i] != ' ')
-                        {
-                            last_character=i;
-                        }
-                    }
-                }
-
-                editor_set_cursor_position(e, last_character, e->current_page_tab->cursor_y);
-            }
-            else if(ev.type==KEY_PAGE_DOWN)
-            {      
-                d_shift_check                  
-                editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y+LINES_ON_PAGE_DOWNUP);
-            }
-            else if(ev.type==KEY_PAGE_UP)
-            {
-                d_shift_check
-                editor_set_cursor_position(e, e->current_page_tab->cursor_x, e->current_page_tab->cursor_y-LINES_ON_PAGE_DOWNUP);
-            }                
-            else if(ev.type==KEY_TAB)
-            {
-                d_shift_check
-                if(e->current_page_tab->current_text_selection)
-                {
-                    //if you want to keep the text selected, will have to create a new text selection
-                    //basically just increase all values by 4 or whatever
-
-                    //@TODO
-                }
-                else
-                {
-                    char *str=strcpy(malloc(2),"\t");
-                    editor_add_text(e, str,true);
-                }
-            }
-            else if(ev.type==KEY_F10)
-            {
-                global_text_margin=global_text_margin?0:1;
-                
-                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
-                    e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL);
-            }
-            else if(ev.type==KEY_F11)
-            {
-                e->is_fullscreen=!e->is_fullscreen;
-                window_toggle_fullscreen(e->win,e->is_fullscreen);
-            }
-            else if(ev.type==KEY_LEFT)
-            {
-                d_shift_check
-                if(e->current_page_tab->cursor_x)
-                {
-                    editor_set_cursor_position(e,e->current_page_tab->cursor_x - 1, e->current_page_tab->cursor_y);
-                }
-                else
-                {
-                    if(e->current_page_tab->cursor_y>0)
-                    {
-                        u32 ypos=e->current_page_tab->cursor_y-1;
-                        editor_set_cursor_position(e,strlen(editor_get_line(e,ypos)), e->current_page_tab->cursor_y-1);
-                    }
-                }
-                
-                    
-            }
-            else if(ev.type==KEY_RIGHT)
-            {
-                d_shift_check
-                if(e->current_page_tab->cursor_x < strlen(editor_get_line(e,e->current_page_tab->cursor_y)))
-                {
-                    editor_set_cursor_position(e,e->current_page_tab->cursor_x + 1, e->current_page_tab->cursor_y);
-                }
-                else
-                {
-                    if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
-                    {
-                        u32 ypos=e->current_page_tab->cursor_y+1;
-                        editor_set_cursor_position(e,0, e->current_page_tab->cursor_y+1);
-                    }
-                }                         
-            }
-            else if(ev.type==KEY_UP)
-            {
-                d_shift_check
-                if(e->current_page_tab->cursor_y>0)
-                {
-                    if(e->current_page_tab->cursor_x>=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1)))
-                    {
-                        e->current_page_tab->cursor_x=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1));
-                    }
-                    editor_set_cursor_position(e,e->current_page_tab->cursor_x, e->current_page_tab->cursor_y - 1);
-                }
-                
-                    
-            }
-            else if(ev.type==KEY_DOWN)
-            {
-                d_shift_check
-                if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
-                {
-                    
-                    if(e->current_page_tab->cursor_x>=strlen(editor_get_line(e,e->current_page_tab->cursor_y+1)))
-                    {
-                        e->current_page_tab->cursor_x=strlen(editor_get_line(e,e->current_page_tab->cursor_y+1));
-                    }
-                    editor_set_cursor_position(e,e->current_page_tab->cursor_x, e->current_page_tab->cursor_y + 1);
-                }                         
+        else if(ev.type==KEY_RIGHT)
+        {                 
+            if(e->shell_pos<strlen(e->shell_text)){
+                e->shell_pos++;
             }
         }
     }
-    
-    e->current_page_tab->cursor_blink_state=true;
-    entity_set_visible(e->current_page_tab->cursor,e->current_page_tab->cursor_blink_state);
-    e->current_page_tab->cursor_blink_timer=0;
+    else{/*normal editor key handling*/
+        /*ACTUAL KEY HANDLING STARTS HERE*/
+        if(e->current_page_tab->keystate.ctrl_pressed)
+        {
+            /*@todo make these rebindable*/
+            
+            /*open*/
+            if(ev.type==KEY_O)
+            {
 
+            }
+            /*save*/
+            if(ev.type==KEY_S)
+            {
+                char *str=malloc(1);
+                str[0]=0;
+                char *newlinestr=malloc(2);
+                newlinestr[0]='\n';
+                newlinestr[1]=0;
+                for(u32 i=0; i<e->current_page_tab->lines_size; i++)
+                {
+                    char *temp=str;
+                    str=str_cat(str,e->current_page_tab->lines[i]);
+                    free(temp);
+                    if(i<e->current_page_tab->lines_size-1)
+                    {
+                        temp=str;
+                        str=str_cat(str,newlinestr);
+                        free(temp);
+                    }
+                }
+                str_to_file(e->current_page_tab->file_path,str);
+                free(str);
+
+                //what should we do if we have no actions and they save? how to track action_list_index? need to at all?
+                if(e->current_page_tab->action_list_size && e->current_page_tab->action_list_index>0)
+                {
+                    e->current_page_tab->action_on_save=e->current_page_tab->action_list[e->current_page_tab->action_list_index]->uid;
+                    image_renderer_set_texture((image_renderer*)e->current_page_tab->ent_renderer,e->current_page_tab->tab_color_good);
+                }
+            }
+            /*find, one for just window if pressing alt for all open windows*/
+            if(ev.type==KEY_F)
+            {
+
+            }
+            /*replace, one for just window if pressing alt for all open windows*/
+            if(ev.type==KEY_H)
+            {
+
+            }
+            /*move to home*/
+            if(ev.type==KEY_LEFT)
+            {
+                on_key_home(e);
+            }
+            /*move to end*/
+            if(ev.type==KEY_RIGHT)
+            {
+                on_key_end(e);
+            }
+            /*move to pageup*/
+            if(ev.type==KEY_UP)
+            {
+                on_key_page_up(e);
+            }
+            /*move to pagedown*/
+            if(ev.type==KEY_DOWN)
+            {
+                on_key_page_down(e);
+            }
+            /*select all*/
+            if(ev.type==KEY_A)
+            {
+                if(!e->current_page_tab->current_text_selection)
+                {
+                    vec2 begin=value_vec2(0,0);
+                    vec2 end=value_vec2(strlen(editor_get_line(e,e->current_page_tab->lines_size-1)),e->current_page_tab->lines_size-1);
+
+                    e->current_page_tab->current_text_selection=ctor_text_selection(begin, end, e);
+                    e->current_page_tab->text_selection_origin=begin;
+                    e->current_page_tab->text_selection_end=end;
+                }
+            }
+            /*open new window*/
+            if(ev.type==KEY_N)
+            {
+                /*disable multiple editors for now - is buggy and probably not needed
+                exit_code=REQUEST_SPAWN_EDITOR;*/
+            }
+            if(ev.type==KEY_C)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
+                }
+            }
+            if(ev.type==KEY_Z)
+            {
+                editor_do_action(e,true);
+            }
+            if(ev.type==KEY_Y)
+            {
+                editor_do_action(e,false);
+            }
+            if(ev.type==KEY_V)
+            {
+                char *sdl_clip=get_clipboard_text();
+                char *clip=strcpy(malloc(strlen(sdl_clip)+1),sdl_clip);
+                system_free(sdl_clip);
+                if(clip)
+                {
+                    editor_add_text(e,clip,true);
+                }
+            }
+            if(ev.type==KEY_X)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
+                    d_delete_selection
+                }
+            }
+        }
+        else/*NON CONTROL KEY HANDLING, TEXT SELECTION DELETING KEYS*/
+        {   
+            if(ev.type==KEY_ESCAPE){
+                e->mode=1;
+                return exit_code;
+            }
+            else if(ev.type==KEY_DELETE)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    d_delete_selection
+                }
+                else
+                {
+                    vec2 begin;
+                    begin.x=e->current_page_tab->cursor_x;
+                    begin.y=e->current_page_tab->cursor_y;
+                    vec2 end;
+                    end.x=e->current_page_tab->cursor_x+1;
+                    end.y=e->current_page_tab->cursor_y;
+
+                    
+                    if(end.x>strlen(editor_get_line(e,e->current_page_tab->cursor_y)))
+                    {                                    
+                        if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
+                        {
+                            end.x=0;
+                            end.y++;    
+                            editor_delete_text(e,begin,end,true, ACTION_DELETE);
+                        }
+                    }
+                    else
+                    {
+                        editor_delete_text(e,begin,end,true,ACTION_DELETE);
+                    }
+                }
+            }
+            else if(ev.type==KEY_ENTER)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    d_delete_selection
+                }
+                
+                char *indent_str=strcpy(malloc(2),"\n");
+                if(AUTO_INDENT)
+                {
+                    s32 indent_str_size=2;
+                    u32 i;
+                    
+                    s32 x=0;
+                    if(e->current_page_tab->cursor_y>=0)
+                    {
+                        char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
+                        x=indentation_level_spaces(editor_line);
+                    }
+                    for(i=0;i<x;i++)
+                    {                            
+                        indent_str_size+=1;
+                        indent_str=realloc(indent_str,indent_str_size);
+                        indent_str[indent_str_size-2]=' ';
+                    }
+                    
+                    indent_str[indent_str_size-1]=0;
+                }                    
+                editor_add_text(e, indent_str, true);                            
+            }
+            else if(ev.type==KEY_BACKSPACE)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    d_delete_selection
+                }
+                else
+                {
+                    vec2 begin;
+                    begin.x=((s32)e->current_page_tab->cursor_x)-1;
+                    begin.y=e->current_page_tab->cursor_y;
+                    vec2 end;
+                    end.x=e->current_page_tab->cursor_x;
+                    end.y=e->current_page_tab->cursor_y;
+
+                        
+                    if(begin.x<0)
+                    {                           
+                        if(e->current_page_tab->cursor_y>0)
+                        {
+                            begin.x=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1));
+                            begin.y--;    
+                            editor_delete_text(e,begin,end,true,ACTION_DELETE);
+                        }
+                    }
+                    else
+                    {
+                        editor_delete_text(e,begin,end,true,ACTION_BACKSPACE);
+                    }
+                    
+                }
+            }
+            else if(ev.type >=KEY_SPACE && ev.type <= KEY_Z)
+            {
+                if(e->current_page_tab->current_text_selection)
+                {
+                    d_delete_selection
+                }
+
+                char *curline=editor_get_line(e,e->current_page_tab->cursor_y);
+                char char_to_insert=ev.type;
+                
+                e->current_page_tab->keystate.shift_pressed=false;
+                for(u32 i=0; i<e->current_page_tab->keystate.pressed_keys_size; i++)
+                {
+                    if(e->current_page_tab->keystate.pressed_keys[i]==KEY_LEFT_SHIFT || e->current_page_tab->keystate.pressed_keys[i]==KEY_RIGHT_SHIFT)
+                    {
+                        e->current_page_tab->keystate.shift_pressed=true;
+                        break;
+                    }
+                }
+                
+                if(e->current_page_tab->keystate.shift_pressed)
+                {
+                    char_to_insert=apply_shift(char_to_insert, true);
+                }
+                else if(get_mod_state() & KEY_MOD_CAPS)
+                {
+                    char_to_insert=apply_shift(char_to_insert, false);
+                }
+                
+                char *str=malloc(2);
+                str[0]=char_to_insert;
+                str[1]=0;
+                editor_add_text(e,str,true);
+                
+                if(AUTO_CURLY_BRACE)
+                {
+                    if(char_to_insert=='{')
+                    {
+                        
+                        if(AUTO_INDENT)
+                        {
+                            s32 indent_str_size=1;
+                            char *indent_str=malloc(indent_str_size);
+                            indent_str[0]='\n';
+                            
+                            
+                            u32 i;
+
+                            char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
+                            s32 indent_level=indentation_level_spaces(editor_line);
+                            s32 x=num_spaces_to_insert_on_tab+indent_level;
+                            for(i=0;i<x;i++)
+                            {                            
+                                indent_str_size+=1;
+                                indent_str=realloc(indent_str,indent_str_size);
+                                indent_str[indent_str_size-1]=' ';
+                            }
+                            
+                            indent_str_size+=1;
+                            indent_str=realloc(indent_str,indent_str_size);                            
+                            indent_str[indent_str_size-1]='\n';
+                            
+                            for(i=0;i<indent_level;i++)
+                            {                            
+                                indent_str_size+=1;
+                                indent_str=realloc(indent_str,indent_str_size);
+                                indent_str[indent_str_size-1]=' ';
+                            }
+                            
+                            indent_str_size+=2;
+                            indent_str=realloc(indent_str,indent_str_size);                            
+                            
+                            indent_str[indent_str_size-2]='}';
+                            indent_str[indent_str_size-1]=0;
+                            
+                            editor_add_text(e,indent_str,true);
+                            editor_set_cursor_position(e, strlen(editor_get_line(e,e->current_page_tab->cursor_y-1)), e->current_page_tab->cursor_y-1);
+                        }
+                        else
+                        {
+                            char *str=strcpy(malloc(2),"}");
+                            editor_add_text(e,str,true);
+                            editor_set_cursor_position(e, e->current_page_tab->cursor_x-1, e->current_page_tab->cursor_y);
+                        }
+                    }
+                }
+            }
+            else /*TEXT_SELECTION CLOSING KEYS IF SHIFT ISNT PRESSED*/
+            {            
+                
+                if(!e->current_page_tab->current_text_selection && (get_mod_state() & KEY_MOD_SHIFT))
+                {
+                    if(e->current_page_tab->current_text_selection)
+                    {
+                        dtor_text_selection(e);
+                    }
+                                
+                    vec2 cpos=value_vec2(e->current_page_tab->cursor_x,e->current_page_tab->cursor_y);
+                    e->current_page_tab->text_selection_origin=cpos;
+                    e->current_page_tab->text_selection_end=cpos;             
+                    e->current_page_tab->current_text_selection=ctor_text_selection(cpos,cpos,e);
+                    
+                    e->current_page_tab->start_selection_mouse=false;
+                    e->current_page_tab->start_selection_key=true;
+                }
+                
+                if(ev.type==KEY_END)
+                {
+                    on_key_end(e);
+                }
+                else if(ev.type==KEY_HOME)
+                {
+                    on_key_home(e);
+                }
+                else if(ev.type==KEY_PAGE_DOWN)
+                {      
+                    on_key_page_down(e);
+                }
+                else if(ev.type==KEY_PAGE_UP)
+                {
+                    on_key_page_up(e);
+                }                
+                else if(ev.type==KEY_TAB)
+                {
+                    d_shift_check
+                    if(e->current_page_tab->current_text_selection)
+                    {
+                        //if you want to keep the text selected, will have to create a new text selection
+                        //basically just increase all values by 4 or whatever
+
+                        //@TODO
+                    }
+                    else
+                    {
+                        char *str=strcpy(malloc(2),"\t");
+                        editor_add_text(e, str,true);
+                    }
+                }
+                else if(ev.type==KEY_LEFT)
+                {
+                    d_shift_check
+                    if(e->current_page_tab->cursor_x)
+                    {
+                        editor_set_cursor_position(e,e->current_page_tab->cursor_x - 1, e->current_page_tab->cursor_y);
+                    }
+                    else
+                    {
+                        if(e->current_page_tab->cursor_y>0)
+                        {
+                            u32 ypos=e->current_page_tab->cursor_y-1;
+                            editor_set_cursor_position(e,strlen(editor_get_line(e,ypos)), e->current_page_tab->cursor_y-1);
+                        }
+                    }
+                    
+                        
+                }
+                else if(ev.type==KEY_RIGHT)
+                {
+                    d_shift_check
+                    if(e->current_page_tab->cursor_x < strlen(editor_get_line(e,e->current_page_tab->cursor_y)))
+                    {
+                        editor_set_cursor_position(e,e->current_page_tab->cursor_x + 1, e->current_page_tab->cursor_y);
+                    }
+                    else
+                    {
+                        if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
+                        {
+                            u32 ypos=e->current_page_tab->cursor_y+1;
+                            editor_set_cursor_position(e,0, e->current_page_tab->cursor_y+1);
+                        }
+                    }                         
+                }
+                else if(ev.type==KEY_UP)
+                {
+                    d_shift_check
+                    if(e->current_page_tab->cursor_y>0)
+                    {
+                        if(e->current_page_tab->cursor_x>=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1)))
+                        {
+                            e->current_page_tab->cursor_x=strlen(editor_get_line(e,e->current_page_tab->cursor_y-1));
+                        }
+                        editor_set_cursor_position(e,e->current_page_tab->cursor_x, e->current_page_tab->cursor_y - 1);
+                    }
+                    
+                        
+                }
+                else if(ev.type==KEY_DOWN)
+                {
+                    d_shift_check
+                    if(e->current_page_tab->cursor_y<e->current_page_tab->lines_size-1)
+                    {
+                        
+                        if(e->current_page_tab->cursor_x>=strlen(editor_get_line(e,e->current_page_tab->cursor_y+1)))
+                        {
+                            e->current_page_tab->cursor_x=strlen(editor_get_line(e,e->current_page_tab->cursor_y+1));
+                        }
+                        editor_set_cursor_position(e,e->current_page_tab->cursor_x, e->current_page_tab->cursor_y + 1);
+                    }                         
+                }
+            }
+        }
+        
+        e->current_page_tab->cursor_blink_state=true;
+        entity_set_visible(e->current_page_tab->cursor,e->current_page_tab->cursor_blink_state);
+        e->current_page_tab->cursor_blink_timer=0;
+        
+    }
+   
     return exit_code;
 }
 /*
@@ -1297,8 +1622,14 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
     for(u32 y=begin.y; y<=end.y; y++)
     {
         char *curline=editor_get_line(focused_editor,y);
+
+        if(!curline){
+            continue;
+        }
+
         if(begin.y==end.y)
         {
+            printf("begin.y==end.y\n");
             char *first=alloc_str_slice(curline, 0, begin.x-1);
             
             char *second=alloc_str_slice(curline, end.x, strlen(curline)-1);
@@ -1325,6 +1656,7 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
         }
         else if(y==end.y)
         {
+            //breakpoint set --file editor.c --line 1372
             u32 i;
             last_line=alloc_str_slice(curline,end.x,strlen(curline)-1);
 
@@ -1393,7 +1725,7 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
     
     if(focused_editor->current_page_tab->current_text_selection)
     {
-        editor_delete_text(focused_editor, focused_editor->current_page_tab->text_selection_origin, focused_editor->current_page_tab->text_selection_end,false,ACTION_DELETE);
+        editor_delete_text(focused_editor, focused_editor->current_page_tab->text_selection_origin, focused_editor->current_page_tab->text_selection_end,true,ACTION_DELETE);
         dtor_text_selection(focused_editor);
         focused_editor->current_page_tab->current_text_selection=NULL;
         focused_editor->current_page_tab->start_selection_mouse=false;
@@ -1462,9 +1794,16 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
     
     s32 mpos_x=mouse_position.x;
 
+    if(!h){
+        size_ttf_font(focused_editor->current_page_tab->font,"_",&w,&h);
+        w=0;
+        /*printf("editor.c line 1546 !h: %d\n",h);*/
+    }
+    
     cursor_y/=h;
+
     if(cursor_y<0)cursor_y=0;
-	
+    
     if(mpos_x<0)
     {
         cursor_x=0;
@@ -1479,7 +1818,7 @@ vec2 editor_position_to_cursor(editor *focused_editor, vec2 mouse_position)
             char *slice=alloc_str_slice(curline, 0, i);
             size_ttf_font(focused_editor->current_page_tab->font,slice,&w,&h);
             free(slice);
-            
+            w+=global_font_size/4;
             if(w>mpos_x)
             {
                 if(i)
@@ -1623,7 +1962,7 @@ void editor_add_action(editor *e, action *a)
 void editor_do_action(editor *e, bool un)
 {
     sprintf(ote_log_buffer,"do_action - (action_list_index,action_list_size): %d,%d\n",e->current_page_tab->action_list_index,e->current_page_tab->action_list_size);
-    ote_log(ote_log_buffer,LOG_TYPE_ACTION);
+    printf(ote_log_buffer);
     action *a=NULL;
     
     if(un)

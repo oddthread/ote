@@ -1,0 +1,69 @@
+fix bug where cursor is in incorrect position when empty line -done
+
+fix cursor positioning on click to be more accurate -done
+
+fix undo/redo bug (has to do with paste and undo?
+    to reproduce:
+        write a few lines, use ctrl-a to select all, copy, paste a few times, then undo
+        is caused by pasting when selecting (overwriting) not correctly adding things to action list (deletion and then insertion)
+    -done
+
+fix text selection positioning -done
+
+*** immediate
+
+add file name to page_tab
+    -done
+
+make line number section always drawn on top -done
+
+window size, resizeable -done
+
+set cursor position to zero after opening file -done
+
+check if file exists when opening -done
+
+find, replace, go to line
+    implement shell.c
+    call that from editor_update, in editor_update and editor_draw
+        simple draw/update no ents, open with ctrl alone
+    -done
+
+add syntax highlighting for C, C++, java, javascript, python
+    write new renderer, parse vars upfront pass to renderer
+    e.g colors.var:
+        c_int=0,0,255
+        c_default=50,50,50
+
+*** polish
+
+fix performance - must beat vscode!
+    only draw visible
+    dont rerender surfaces unnecessary
+    cursor positioning (dont search whole document...)
+
+fix all crashes + leaks e.g. in dtor_page_tab - valgrind
+
+*** bugs
+    closing one page tab closed all, seems to happen when closing first tab and click also registers on lower tabs as they move up
+
+    sometimes ctrl-a doesnt select all, seemed to happen sometimes when cursor was at end of document - begin.y==end.y?
+
+    fix mouse scrolling -disabled for now, really wonky and need acceleration
+
+*** "real"
+
+add support for other keyboards
+    fr kb
+
+add default screen, new document, save as (shell)
+
+packaging for osx/windows
+
+more efficient compilation
+
+*** notes
+
+its a shame all the editor code cant be reused for the shell prompt,
+    it would be a nightmare to refactor everything like that,
+    so it wont behave the same, e.g. text selection, end/home - I guess its ok

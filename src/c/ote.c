@@ -5,11 +5,16 @@
 
 #include "oul/src/h/oul.h"
 
+#include "ovp/src/h/ovp.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 int main(int argc, char **argv)
 {
+    create_empty_file_if_not_exists("colors.var");
+    ovp *colors=ctor_ovp(alloc_file_to_str("colors.var"));
+
     global_state *gs=ctor_global_state(argc, argv);
 
     u32 frame_time_stamp=milli_current_time();

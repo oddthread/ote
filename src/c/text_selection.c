@@ -9,11 +9,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+texture *ctor_texture_file(window *w, char const *path);
+
 typedef struct text_selection
 {
     image_renderer *ir;
     entity **text_selection_entities;
     u32 text_selection_entities_size;
+    rect *clip_region;
 } text_selection;
 
 text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, editor *focused_editor)
@@ -21,21 +24,29 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
 
     text_selection *t=malloc(sizeof(text_selection));
     
+    int win_w,win_h;
+    
+    window_get_size(editor_get_window(focused_editor),&win_w,&win_h);
     t->text_selection_entities=NULL;
     t->text_selection_entities_size=0;
- 
+    t->clip_region=malloc(sizeof(rect));
+    t->clip_region->x=global_text_margin;
+    t->clip_region->y=0;
+    t->clip_region->w=win_w;
+    t->clip_region->h=win_h;
+    
     if(start_position.x==end_position.x && start_position.y == end_position.y)
     {
         return t;
     }
     
     char *base_path=get_base_path();
-    char *adjpath=str_cat(base_path,"res/blue.png");
+    char *adjpath=str_cat(base_path,"../res/blue.png");
     system_free(base_path);
-    texture *tex=ctor_texture(editor_get_window(focused_editor), adjpath);
+    texture *tex=ctor_texture_file(editor_get_window(focused_editor), adjpath);
+    r32 text_selection_alpha=.5;
     free(adjpath);
-    t->ir=ctor_image_renderer(editor_get_window(focused_editor),tex);
-    texture_set_alpha(tex,100);
+    t->ir=ctor_image_renderer(editor_get_window(focused_editor),tex, t->clip_region);
     
     end_position.x-=1;//we actually dont want to include the character that the cursor is "on"
     /*
@@ -74,6 +85,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             
             entity *e=ctor_entity(editor_get_text_holder(focused_editor));
             entity_set_order(e,0);
+            entity_set_alpha(e,text_selection_alpha);
             t->text_selection_entities[t->text_selection_entities_size-1]=e;
             
             entity_add_renderer(e,(renderer*)t->ir);
@@ -99,6 +111,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             t->text_selection_entities=realloc(t->text_selection_entities, t->text_selection_entities_size*sizeof(entity*));
             entity *e=ctor_entity(editor_get_text_holder(focused_editor));
             entity_set_order(e,0);
+            entity_set_alpha(e,text_selection_alpha);
             t->text_selection_entities[t->text_selection_entities_size-1]=e;
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
@@ -117,6 +130,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             t->text_selection_entities=realloc(t->text_selection_entities, t->text_selection_entities_size*sizeof(entity*));
             entity *e=ctor_entity(editor_get_text_holder(focused_editor));
             entity_set_order(e,0);
+            entity_set_alpha(e,text_selection_alpha);
             t->text_selection_entities[t->text_selection_entities_size-1]=e;
             entity_add_renderer(e,(renderer*)t->ir);
             entity_set_size(e,value_vec2(w,h));
@@ -134,6 +148,7 @@ text_selection *ctor_text_selection(vec2 start_position, vec2 end_position, edit
             t->text_selection_entities_size+=1;
             t->text_selection_entities=realloc(t->text_selection_entities, t->text_selection_entities_size*sizeof(entity*));
             entity *e=ctor_entity(editor_get_text_holder(focused_editor));
+            entity_set_alpha(e,text_selection_alpha);
             entity_set_order(e,0);
             t->text_selection_entities[t->text_selection_entities_size-1]=e;
             entity_add_renderer(e,(renderer*)t->ir);
@@ -160,7 +175,7 @@ void dtor_text_selection(editor *e)
             
             free(ts->text_selection_entities);
         }
-        
+        free(ts->clip_region);
         free(ts);
         editor_set_current_text_selection(e, NULL);
     }

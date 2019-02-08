@@ -51,13 +51,13 @@ s32 indentation_level_spaces(char *line)
     return retval;
 }
 
-char const *global_font_url="res/umr.ttf";
+char const *global_font_url="../res/umr.ttf";
 u32 global_font_size=20;
-s32 global_text_margin=1;/*if 0 line numbers wont render*/
+s32 global_text_margin=1;/*if 0 line numbers wont render, can only increase, not decrease*/
 
 s32 standard_button_width=200;
-s32 standard_button_height=50;
+s32 standard_button_height=25;
 
 r32 standard_button_alpha=.5;
-r32 standard_button_hover_alpha=.75;
-r32 standard_button_selected_alpha=1;
+r32 standard_button_hover_alpha=.625;
+r32 standard_button_selected_alpha=.75;
