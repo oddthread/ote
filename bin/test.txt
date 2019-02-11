@@ -1,29 +1,3 @@
-test
-
-
-
-
-
-
-
-
-
-
-
-middle
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-line 3
+this is
+some text
+hello!
