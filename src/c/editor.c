@@ -1527,7 +1527,7 @@ s32 editor_handle_keys(editor *e, event ev)
                     }
                     else
                     {
-                        char *str=strcpy(malloc(2),"\t");
+                        char *str=strcpy(malloc(5),"    ");
                         editor_add_text(e, str,true);
                     }
                 }

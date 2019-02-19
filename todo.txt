@@ -51,6 +51,7 @@ fix all crashes + leaks e.g. in dtor_page_tab - valgrind
 
     fix mouse scrolling -disabled for now, really wonky and need acceleration
 
+    bug undo with tab (only undoes one space) -- fixed (just pass space into the function instead of tab and then have to keep it updated in mulitple places)
 *** "real"
 
 add support for other keyboards
