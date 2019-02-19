@@ -99,6 +99,8 @@ typedef struct page_tab
     s64 held_key;
     s64 held_key_time_stamp;
     vec2 offset;
+
+    char *ext;
 } page_tab;
 
 typedef struct editor
@@ -321,12 +323,12 @@ page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config)
     
     adjpath=str_cat(base_path,(char*)global_font_url);
     p->font=ctor_ttf_font(adjpath,global_font_size);
-
+    p->ext=get_ext(filepath);
     ttf_font *fn_font=ctor_ttf_font(adjpath,12);
     free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
     text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left", config);
-    text_block_renderer_set_text(r,c,p->lines_size,p->font_color,NULL);
+    text_block_renderer_set_text(r,c,p->lines_size,p->font_color,NULL,p->ext);
     p->tbr=r;
     entity_add_renderer(p->text_entity,(renderer*)r);
 
@@ -367,7 +369,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config)
 void dtor_page_tab(page_tab *p)
 {
     //@todo free lines after refactor
-
+    if(p->ext)free(p->ext);
     for(u32 i=0; i<p->action_list_size; i++)
     {
         //@valgrind
@@ -1097,7 +1099,7 @@ s32 editor_handle_keys(editor *e, event ev)
             /*global_text_margin=global_text_margin?0:1;*/
             
             text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
-                e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL);
+                e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL,e->current_page_tab->ext);
         }
         else if(ev.type==KEY_F11)
         {
@@ -1264,7 +1266,25 @@ s32 editor_handle_keys(editor *e, event ev)
             {
                 if(e->current_page_tab->current_text_selection)
                 {
-                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
+                    printf("end:%f,%f\n",e->current_page_tab->text_selection_end.x,e->current_page_tab->text_selection_end.y);
+                    printf("origin:%f,%f\n",e->current_page_tab->text_selection_origin.x,e->current_page_tab->text_selection_origin.y);
+                    
+                    vec2 begin=e->current_page_tab->text_selection_origin;
+                    vec2 end=e->current_page_tab->text_selection_end;
+                    vec2 temp;
+                    if(begin.y>end.y){
+                        temp=end;
+                        end=begin;
+                        begin=temp;
+                    }
+                    else if(begin.x>end.x){
+                        temp=end;
+                        end=begin;
+                        begin=temp;
+                    }
+                    end.x--;
+                    if(end.x<0)end.x=0;
+                    set_clipboard_text(editor_get_text(e,begin,end));
                 }
             }
             if(ev.type==KEY_Z)
@@ -1712,7 +1732,7 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
     }
     editor_set_cursor_position(focused_editor, begin.x, begin.y);
     text_block_renderer_set_text(focused_editor->current_page_tab->tbr,focused_editor->current_page_tab->lines,
-        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,NULL);
+        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,NULL,focused_editor->current_page_tab->ext);
 }
 /*
 @todo change to pass position explicitly
@@ -1778,7 +1798,7 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
     }
     
     text_block_renderer_set_text(focused_editor->current_page_tab->tbr,focused_editor->current_page_tab->lines,
-        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,&focused_editor->current_page_tab->cursor_y);
+        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,&focused_editor->current_page_tab->cursor_y,focused_editor->current_page_tab->ext);
 }
 
 

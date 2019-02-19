@@ -37,6 +37,8 @@ add syntax highlighting for C, C++, java, javascript, python
 
 *** polish
 
+tab multiple lines with selection
+
 fix performance - must beat vscode!
     only draw visible
     dont rerender surfaces unnecessary
