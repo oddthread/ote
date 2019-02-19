@@ -3,6 +3,7 @@
 #include "ote/src/h/editor.h"
 
 #include "oul/src/h/oul.h"
+#include "ovp/src/h/ovp.h"
 #include "opl/src/h/input.h"
 #include "opl/src/h/system.h"
 
@@ -200,7 +201,7 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     }
 }
 
-page_tab *ctor_page_tab(editor *e, char *filepath)
+page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config)
 {    
     create_empty_file_if_not_exists(filepath);
 
@@ -324,7 +325,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath)
     ttf_font *fn_font=ctor_ttf_font(adjpath,12);
     free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
-    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left");
+    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left", config);
     text_block_renderer_set_text(r,c,p->lines_size,p->font_color,NULL);
     p->tbr=r;
     entity_add_renderer(p->text_entity,(renderer*)r);

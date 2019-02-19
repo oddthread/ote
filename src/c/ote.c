@@ -13,9 +13,9 @@
 int main(int argc, char **argv)
 {
     create_empty_file_if_not_exists("colors.var");
-    ovp *colors=ctor_ovp(alloc_file_to_str("colors.var"));
+    ovp *config=ctor_ovp(alloc_file_to_str("colors.var"));
 
-    global_state *gs=ctor_global_state(argc, argv);
+    global_state *gs=ctor_global_state(argc, argv, config);
 
     u32 frame_time_stamp=milli_current_time();
     s32 exit_code=0;

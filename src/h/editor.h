@@ -10,7 +10,7 @@
 #include "opl/src/h/input.h"
 
 typedef struct page_tab page_tab;
-page_tab *ctor_page_tab(editor *e, char *filepath);
+page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config);
 
 typedef struct editor editor;
 editor *ctor_editor();

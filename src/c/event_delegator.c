@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-global_state *ctor_global_state(int argc, char **argv)
+global_state *ctor_global_state(int argc, char **argv, ovp *config)
 {
     init_graphics();
     init_input();
@@ -15,7 +15,7 @@ global_state *ctor_global_state(int argc, char **argv)
     global_state *gs=malloc(sizeof(global_state));
     gs->e.id=0;
     gs->e.pressed=0;
-
+    gs->config=config;
     gs->editors_size=1;
     gs->editors=(editor**)malloc(sizeof(editor*)*gs->editors_size);
     gs->editors[0]=ctor_editor();
@@ -33,7 +33,7 @@ global_state *ctor_global_state(int argc, char **argv)
 
     for(s32 i=1; i<argc; i++)
     {
-        ctor_page_tab(gs->focused_editor,argv[i]);
+        ctor_page_tab(gs->focused_editor,argv[i], gs->config);
     }
 
     return gs;
@@ -117,7 +117,7 @@ s32 delegate_event_window(global_state *gs)
         }  
         if(gs->e.type==DROP_FILE)
         {
-            ctor_page_tab(gs->focused_editor,gs->e.str);
+            ctor_page_tab(gs->focused_editor,gs->e.str, gs->config);
             system_free(gs->e.str);
         } 
     }

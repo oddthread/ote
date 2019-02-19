@@ -60,7 +60,9 @@ add default screen, new document, save as (shell)
 
 packaging for osx/windows
 
-more efficient compilation
+more efficient compilation (dependencies in make)
+
+release build (compiler options), fixing warnings
 
 *** notes
 
