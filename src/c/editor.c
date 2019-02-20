@@ -1650,7 +1650,6 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
 
         if(begin.y==end.y)
         {
-            printf("begin.y==end.y\n");
             char *first=alloc_str_slice(curline, 0, begin.x-1);
             
             char *second=alloc_str_slice(curline, end.x, strlen(curline)-1);
