@@ -34,6 +34,7 @@ add syntax highlighting for C, C++, java, javascript, python
     e.g colors.var:
         c_int=0,0,255
         c_default=50,50,50
+    will need to change it for multiline comments (rerender based on key events)
 
 *** polish
 
@@ -41,8 +42,10 @@ tab multiple lines with selection
 
 fix performance - must beat vscode!
     only draw visible
-    dont rerender surfaces unnecessary
+    dont rerender surfaces unnecessary (see comment)
     cursor positioning (dont search whole document...)
+    change lines to be in groups of maximum of e.g. 10k, or some better way of handling large files
+
 
 fix all crashes + leaks e.g. in dtor_page_tab - valgrind
 

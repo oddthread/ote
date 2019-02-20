@@ -1,3 +1,3 @@
-int main(){
+sss start int main(){
 	return 0;
 }

@@ -166,6 +166,9 @@ java_operators : 255 149 143
 java_numbers : 255 197 143
 java_strings : 209 241 169
 
+java_custom_package : 235 187 255
+java_custom_import : 235 187 255
+java_custom_interface : 235 187 255
 java_custom_class : 235 187 255
 java_custom_for : 235 187 255
 java_custom_while : 235 187 255
@@ -176,6 +179,7 @@ java_custom_default : 235 187 255
 java_custom_return : 235 187 255
 java_custom_if : 235 187 255
 
+java_custom_void : 187 218 255
 java_custom_int : 187 218 255
 java_custom_char : 187 218 255
 java_custom_short : 187 218 255
