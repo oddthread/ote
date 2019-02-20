@@ -34,7 +34,8 @@ add syntax highlighting for C, C++, java, javascript, python
     e.g colors.var:
         c_int=0,0,255
         c_default=50,50,50
-    will need to change it for multiline comments (rerender based on key events)
+    will need to change it for multiline comments and strings(rerender based on key events)
+    fix for strings that contains separators -done
 
 *** polish
 

@@ -84,6 +84,8 @@ cpp_operators : 255 149 143
 cpp_numbers : 255 197 143
 cpp_strings : 209 241 169
 
+cpp_custom_namespace : 235 187 255
+cpp_custom_const : 235 187 255
 cpp_custom_auto : 235 187 255
 cpp_custom_class : 235 187 255
 cpp_custom_struct : 235 187 255
@@ -125,6 +127,8 @@ hpp_operators : 255 149 143
 hpp_numbers : 255 197 143
 hpp_strings : 209 241 169
 
+hpp_custom_namespace : 235 187 255
+hpp_custom_const : 235 187 255
 hpp_custom_auto : 235 187 255
 hpp_custom_class : 235 187 255
 hpp_custom_struct : 235 187 255
