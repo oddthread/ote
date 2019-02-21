@@ -504,9 +504,9 @@ vec2 editor_find_starting_at(editor *e, char *str, int x, int y){
     for(i=y; i<pt->lines_size; i++){
         for(;pt->lines[i][j];j++){
             char *check=alloc_str_slice(pt->lines[i],j,j+strlen_str-1);
-            printf("editor_find - check, str, check==str: %s,%s,%d\n",check,str,str_eq(check,str));
+            
             if(str_eq(check,str)){
-                printf("editor_find - set cursor pos: %d,%d\n",i,j+strlen_str);
+            
                 editor_set_cursor_position(e,j+strlen_str,i);
                 free(check);
                 return value_vec2(j,i);
