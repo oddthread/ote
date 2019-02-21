@@ -1129,6 +1129,10 @@ s32 editor_handle_keys(editor *e, event ev)
         {
             if(shell_execute(e,e->shell_text)){
                 e->mode=!e->mode;
+                free(e->shell_text);
+                e->shell_text=malloc(1);
+                e->shell_text[0]=0;
+                e->shell_pos=0;
             }
         }
         else if(ev.type==KEY_BACKSPACE)

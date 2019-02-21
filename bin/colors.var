@@ -27,6 +27,9 @@ c_custom_return : 235 187 255
 c_custom_if : 235 187 255
 c_custom_union : 235 187 255
 
+c_custom_static : 235 187 255
+c_custom_bool : 187 218 255
+
 c_custom_int : 187 218 255
 c_custom_char : 187 218 255
 c_custom_short : 187 218 255
@@ -52,6 +55,9 @@ h_default : 255 255 255
 h_operators : 255 149 143
 h_numbers : 255 197 143
 h_strings : 209 241 169
+
+h_custom_static : 235 187 255
+h_custom_bool : 187 218 255
 
 h_custom_struct : 235 187 255
 h_custom_typedef : 235 187 255
@@ -89,6 +95,9 @@ cpp_default : 255 255 255
 cpp_operators : 255 149 143
 cpp_numbers : 255 197 143
 cpp_strings : 209 241 169
+
+cpp_custom_static : 235 187 255
+cpp_custom_bool : 187 218 255
 
 cpp_custom_namespace : 235 187 255
 cpp_custom_const : 235 187 255
@@ -133,6 +142,9 @@ hpp_operators : 255 149 143
 hpp_numbers : 255 197 143
 hpp_strings : 209 241 169
 
+hpp_custom_static : 235 187 255
+hpp_custom_bool : 187 218 255
+
 hpp_custom_namespace : 235 187 255
 hpp_custom_const : 235 187 255
 hpp_custom_auto : 235 187 255
@@ -175,6 +187,9 @@ java_default : 255 255 255
 java_operators : 255 149 143
 java_numbers : 255 197 143
 java_strings : 209 241 169
+
+java_custom_static : 235 187 255
+java_custom_bool : 187 218 255
 
 java_custom_package : 235 187 255
 java_custom_import : 235 187 255

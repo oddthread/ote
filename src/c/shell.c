@@ -135,6 +135,22 @@ bool shell_execute(editor *e, char *cmd){
 
     int index=0;
     token name=get_next_token(cmd,index,sep);
+    
+    if(str_eq(name.token,"exit")){
+        exit(0);
+    }
+ 
+    if(str_eq(name.token,"fullscreen")){
+        window_toggle_fullscreen(editor_get_window(e),true);
+        return true;
+    }
+    
+    if(str_eq(name.token,"unfullscreen")){
+        window_toggle_fullscreen(editor_get_window(e),false);
+        return true;
+    }
+    
+     
     if(str_eq(name.token,"find")){
         token p1=get_next_token(cmd,name.end,sep);
 
