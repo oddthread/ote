@@ -176,6 +176,8 @@ void editor_set_cursor_position(editor *e, s32 x, s32 y)
     e->current_page_tab->cursor_x=x;
     e->current_page_tab->cursor_y=y;
 
+    text_block_renderer_set_curline(e->current_page_tab->tbr,y);
+    
     u32 width;
     u32 height;
     e->current_page_tab->wheel_override=false;
@@ -327,8 +329,10 @@ page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config)
     ttf_font *fn_font=ctor_ttf_font(adjpath,12);
     free(adjpath);
     //@todo also change this so i construct a ttf font before hand instead of loading it from url
-    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left", config);
-    text_block_renderer_set_text(r,c,p->lines_size,p->font_color,NULL,p->ext);
+    text_block_renderer *r=ctor_text_block_renderer(e->win,p->font,true,&global_text_margin,"left", config,p->font_color);
+    text_block_renderer_set_curline(r,p->cursor_y);
+    text_block_renderer_add_lines(r,0,1);
+    
     p->tbr=r;
     entity_add_renderer(p->text_entity,(renderer*)r);
 
@@ -363,6 +367,7 @@ page_tab *ctor_page_tab(editor *e, char *filepath, ovp *config)
     entity_sort_children(e->root);
     
     editor_set_cursor_position(e, 0, 0);
+    
     
     return p;
 }
@@ -1096,10 +1101,11 @@ s32 editor_handle_keys(editor *e, event ev)
     {/*global key handling*/
         if(ev.type==KEY_F10)
         {
-            /*global_text_margin=global_text_margin?0:1;*/
+            /*global_text_margin=global_text_margin?0:1;
             
             text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
-                e->current_page_tab->lines_size,e->current_page_tab->font_color,NULL,e->current_page_tab->ext);
+                e->current_page_tab->lines_size,e->current_page_tab->font_color,0,e->current_page_tab->lines_size-1,e->current_page_tab->ext);
+            */
         }
         else if(ev.type==KEY_F11)
         {
@@ -1714,6 +1720,7 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
         if(!editor_get_line(focused_editor,i))
         {
             editor_remove_line(focused_editor,i);
+            text_block_renderer_remove_lines(focused_editor->current_page_tab->tbr,i,1);
             i--;
         }
     }
@@ -1731,7 +1738,9 @@ void editor_delete_text(editor *focused_editor, vec2 begin, vec2 end, bool do_ad
     }
     editor_set_cursor_position(focused_editor, begin.x, begin.y);
     text_block_renderer_set_text(focused_editor->current_page_tab->tbr,focused_editor->current_page_tab->lines,
-        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,NULL,focused_editor->current_page_tab->ext);
+        focused_editor->current_page_tab->lines_size,begin.y,end.y,focused_editor->current_page_tab->ext);
+
+
 }
 /*
 @todo change to pass position explicitly
@@ -1764,8 +1773,10 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
         {                                 
             u32 next_line_splice_start=focused_editor->current_page_tab->cursor_x;
             u32 next_line_splice_end=strlen(editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y))-1;
+            text_block_renderer_add_lines(focused_editor->current_page_tab->tbr,focused_editor->current_page_tab->cursor_y,1);
+
             editor_insert_line(focused_editor,focused_editor->current_page_tab->cursor_y+1,alloc_str_slice(editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y),next_line_splice_start,next_line_splice_end));
-            
+
             char *temp=editor_get_line(focused_editor,focused_editor->current_page_tab->cursor_y);
             editor_set_line(focused_editor,focused_editor->current_page_tab->cursor_y,alloc_str_slice(temp,0,focused_editor->current_page_tab->cursor_x-1));
             free(temp);
@@ -1797,7 +1808,7 @@ void editor_add_text(editor *focused_editor, char *clip, bool do_add_action)
     }
     
     text_block_renderer_set_text(focused_editor->current_page_tab->tbr,focused_editor->current_page_tab->lines,
-        focused_editor->current_page_tab->lines_size,focused_editor->current_page_tab->font_color,&focused_editor->current_page_tab->cursor_y,focused_editor->current_page_tab->ext);
+        focused_editor->current_page_tab->lines_size,cursor_position_start.y,focused_editor->current_page_tab->cursor_y,focused_editor->current_page_tab->ext);
 }
 
 

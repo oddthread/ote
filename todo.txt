@@ -37,6 +37,8 @@ add syntax highlighting for C, C++, java, javascript, python
     will need to change it for multiline comments and strings(rerender based on key events)
     fix for strings that contains separators -done
 
+memory issues with large files (possibly because 32 bit, but should it even need more than 2gb at any point?)
+
 *** polish
 
 tab multiple lines with selection
