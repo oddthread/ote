@@ -1,6 +1,12 @@
 #language extension is first, separated by underscore
 #all languages have default, operators, numbers, strings then any word can be added after 'custom'
 
+#var
+var_default : 255 255 255
+var_strings : 209 241 169
+var_operators : 255 149 143
+var_numbers : 255 197 143
+
 #C
 
 c_default : 255 255 255
