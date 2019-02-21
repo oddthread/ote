@@ -76,6 +76,11 @@ s32 delegate_event_window(global_state *gs)
 
         if(gs->e.type==WINDOW_CLOSE)
         {
+            if(gs->editors_size==0)
+            {
+                return EXIT_CODE_ALL_WINDOWS_CLOSED;
+            }
+            
             u32 i;
             for(i=0; i<gs->editors_size; i++)
             {
@@ -92,10 +97,6 @@ s32 delegate_event_window(global_state *gs)
                     dtor_editor(editor_to_free);
                     break;
                 }
-            }
-            if(gs->editors_size==0)
-            {
-                return EXIT_CODE_ALL_WINDOWS_CLOSED;
             }
         }       
         if(gs->e.type == FOCUS_GAINED)
