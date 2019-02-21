@@ -217,3 +217,23 @@ js_custom_if : 235 187 255
 
 js_custom_var : 187 218 255
 js_custom_let : 187 218 255
+
+#HTML (copy of js)
+
+html_default : 255 255 255
+html_operators : 255 149 143
+html_numbers : 255 197 143
+html_strings : 209 241 169
+
+html_custom_class : 235 187 255
+html_custom_for : 235 187 255
+html_custom_while : 235 187 255
+html_custom_switch : 235 187 255
+html_custom_case : 235 187 255
+html_custom_break : 235 187 255
+html_custom_default : 235 187 255
+html_custom_return : 235 187 255
+html_custom_if : 235 187 255
+
+html_custom_var : 187 218 255
+html_custom_let : 187 218 255

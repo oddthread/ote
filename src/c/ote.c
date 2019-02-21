@@ -12,9 +12,12 @@
 
 int main(int argc, char **argv)
 {
-    create_empty_file_if_not_exists("colors.var");
-    ovp *config=ctor_ovp(alloc_file_to_str("colors.var"));
-
+    char *base_path=get_base_path();
+    char *adjpath=str_cat(base_path,"colors.var");
+    create_empty_file_if_not_exists(adjpath);
+    ovp *config=ctor_ovp(alloc_file_to_str(adjpath));
+    free(adjpath);
+    
     global_state *gs=ctor_global_state(argc, argv, config);
 
     u32 frame_time_stamp=milli_current_time();
