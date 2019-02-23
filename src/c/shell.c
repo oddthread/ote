@@ -142,10 +142,12 @@ bool shell_execute(editor *e, char *cmd){
  
     if(str_eq(name.token,"fullscreen")){
         window_toggle_fullscreen(editor_get_window(e),true);
+        free(name.token);
         return true;
     }
     
     if(str_eq(name.token,"unfullscreen")){
+        free(name.token);
         window_toggle_fullscreen(editor_get_window(e),false);
         return true;
     }
@@ -160,10 +162,12 @@ bool shell_execute(editor *e, char *cmd){
             printf("find returning, extra token(s): %s,%d\n",extra_token,strlen(extra_token));
             free(extra_token);
             free(p1.token);
+            free(name.token);
             return false;
         }
 
         status=shell_find(e,p1.token);
+        free(name.token);
         free(p1.token);
     }
     if(str_eq(name.token,"replace")){
@@ -177,11 +181,13 @@ bool shell_execute(editor *e, char *cmd){
             free(extra_token);
             free(p1.token);
             free(p2.token);
+            free(name.token);
             return false;
         }
         
         status=shell_replace(e,p1.token,p2.token);
         free(p1.token);
+        free(name.token);
         free(p2.token);
     }
     if(str_eq(name.token,"goto")){
@@ -191,6 +197,7 @@ bool shell_execute(editor *e, char *cmd){
         if(extra_token){
             free(extra_token);
             free(p1.token);
+            free(name.token);
             return false;
         }
 
@@ -198,6 +205,7 @@ bool shell_execute(editor *e, char *cmd){
 
         status=shell_goto(e,gotoval-1);
         free(p1.token);
+        free(name.token);
     }
     if(str_eq(name.token,"replaceall")){
         token p1=get_next_token(cmd,name.end,sep);
@@ -208,11 +216,13 @@ bool shell_execute(editor *e, char *cmd){
             free(extra_token);
             free(p1.token);
             free(p2.token);
+            free(name.token);
             return false;
         }
         
         status=shell_replace_all(e,p1.token,p2.token);
         free(p1.token);
+        free(name.token);
         free(p2.token);
     }
 
