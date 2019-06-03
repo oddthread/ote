@@ -101,6 +101,7 @@ s32 delegate_event_window(global_state *gs)
         }       
         if(gs->e.type == FOCUS_GAINED)
         {
+            flush_events(ALL_EVENTS);
             u32 i;
             for(i=0; i<gs->editors_size; i++)
             {

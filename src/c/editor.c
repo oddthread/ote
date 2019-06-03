@@ -1544,9 +1544,10 @@ s32 editor_handle_keys(editor *e, event ev)
                 else if(ev.type==KEY_PAGE_UP)
                 {
                     on_key_page_up(e);
-                }                
-                else if(ev.type==KEY_TAB)
+                }             
+                else if(ev.type==KEY_TAB && !(get_mod_state() & KEY_MOD_ALT) && !(get_mod_state() & KEY_MOD_GUI))/*last two conditions are to ensure that this tab event wasnt caused by tabbing into the window*/
                 {
+                    
                     d_shift_check
                     if(e->current_page_tab->current_text_selection)
                     {
