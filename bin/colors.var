@@ -25,6 +25,7 @@ c_custom_continue : 235 187 255
 c_custom_default : 235 187 255
 c_custom_return : 235 187 255
 c_custom_if : 235 187 255
+c_custom_else : 235 187 255
 c_custom_union : 235 187 255
 
 c_custom_static : 235 187 255
@@ -70,6 +71,7 @@ h_custom_continue : 235 187 255
 h_custom_default : 235 187 255
 h_custom_return : 235 187 255
 h_custom_if : 235 187 255
+h_custom_else : 235 187 255
 h_custom_union : 235 187 255
 
 h_custom_int : 187 218 255
@@ -114,6 +116,7 @@ cpp_custom_continue : 235 187 255
 cpp_custom_default : 235 187 255
 cpp_custom_return : 235 187 255
 cpp_custom_if : 235 187 255
+cpp_custom_else : 235 187 255
 cpp_custom_union : 235 187 255
 
 cpp_custom_int : 187 218 255
@@ -160,6 +163,7 @@ hpp_custom_continue : 235 187 255
 hpp_custom_default : 235 187 255
 hpp_custom_return : 235 187 255
 hpp_custom_if : 235 187 255
+hpp_custom_else : 235 187 255
 hpp_custom_union : 235 187 255
 
 hpp_custom_int : 187 218 255
@@ -203,6 +207,7 @@ java_custom_break : 235 187 255
 java_custom_default : 235 187 255
 java_custom_return : 235 187 255
 java_custom_if : 235 187 255
+java_custom_else : 235 187 255
 
 java_custom_void : 187 218 255
 java_custom_int : 187 218 255
@@ -229,6 +234,7 @@ js_custom_break : 235 187 255
 js_custom_default : 235 187 255
 js_custom_return : 235 187 255
 js_custom_if : 235 187 255
+js_custom_else : 235 187 255
 
 js_custom_var : 187 218 255
 js_custom_let : 187 218 255

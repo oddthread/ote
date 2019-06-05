@@ -1116,7 +1116,11 @@ s32 editor_handle_keys(editor *e, event ev)
 
     if(e->mode){/*shell key handling*/
         if(ev.type==KEY_ESCAPE){
-            e->mode=0;
+            e->mode=!e->mode;
+            free(e->shell_text);
+            e->shell_text=malloc(1);
+            e->shell_text[0]=0;
+            e->shell_pos=0;
             return exit_code;
         }
         else if(ev.type==KEY_DELETE)
@@ -1128,11 +1132,13 @@ s32 editor_handle_keys(editor *e, event ev)
         else if(ev.type==KEY_ENTER)
         {
             if(shell_execute(e,e->shell_text)){
+                /*disable clearing on enter
                 e->mode=!e->mode;
                 free(e->shell_text);
                 e->shell_text=malloc(1);
                 e->shell_text[0]=0;
                 e->shell_pos=0;
+                */
             }
         }
         else if(ev.type==KEY_BACKSPACE)
@@ -1318,8 +1324,10 @@ s32 editor_handle_keys(editor *e, event ev)
             if(ev.type==KEY_X)
             {
                 if(e->current_page_tab->current_text_selection)
-                {
-                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,e->current_page_tab->text_selection_end));
+                {   
+                    vec2 newend=e->current_page_tab->text_selection_end;
+                    newend.x--;
+                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,newend));
                     d_delete_selection
                 }
             }
@@ -1371,24 +1379,46 @@ s32 editor_handle_keys(editor *e, event ev)
                 char *indent_str=strcpy(malloc(2),"\n");
                 if(AUTO_INDENT)
                 {
+                    bool text_on_line=false;
                     s32 indent_str_size=2;
                     u32 i;
                     
                     s32 x=0;
+                    
+                    char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
+                    
                     if(e->current_page_tab->cursor_y>=0)
                     {
-                        char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
+                        for(int i=e->current_page_tab->cursor_x; editor_line[i]; i++){
+                            if(editor_line[i]!=' '){
+                                printf("found text on line: %c\n",editor_line[i]);
+                                text_on_line=true;
+                                break;   
+                            }
+                        }
                         x=indentation_level_spaces(editor_line);
                     }
+                    
+                    if(text_on_line){
+                        int text_indent=0;
+                        for(int i=0; editor_line[i]; i++){
+                            if(editor_line[i]!=' '){
+                                break;
+                            }        
+                            text_indent++;
+                        }                
+                        x=text_indent;
+                    }
+                
                     for(i=0;i<x;i++)
                     {                            
                         indent_str_size+=1;
                         indent_str=realloc(indent_str,indent_str_size);
                         indent_str[indent_str_size-2]=' ';
                     }
-                    
-                    indent_str[indent_str_size-1]=0;
-                }                    
+                
+                    indent_str[indent_str_size-1]=0; 
+                }
                 editor_add_text(e, indent_str, true);                            
             }
             else if(ev.type==KEY_BACKSPACE)
