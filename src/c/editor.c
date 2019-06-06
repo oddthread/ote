@@ -1068,7 +1068,31 @@ static void on_key_end(editor *e)
 
     editor_set_cursor_position(e, last_character, e->current_page_tab->cursor_y);
 }
+static void svil(vec2 *begin, vec2 *end){
+    vec2 temp;
+    if(begin->y > end->y){
+        temp=*end;
+        *end=*begin;
+        *begin=temp;
+    }
+    else if(begin->x > end->x){
+        temp=*end;
+        *end=*begin;
+        *begin=temp;
+    }
+}
+static void copy_selection(editor *e){
+    printf("end:%f,%f\n",e->current_page_tab->text_selection_end.x,e->current_page_tab->text_selection_end.y);
+    printf("origin:%f,%f\n",e->current_page_tab->text_selection_origin.x,e->current_page_tab->text_selection_origin.y);
+    
+    vec2 begin=e->current_page_tab->text_selection_origin;
+    vec2 end=e->current_page_tab->text_selection_end;
+    svil(&begin,&end);
+    
+    end.x--;
 
+    set_clipboard_text(editor_get_text(e,begin,end));
+}
 s32 editor_handle_keys(editor *e, event ev)
 {
     s32 exit_code=0;
@@ -1259,30 +1283,17 @@ s32 editor_handle_keys(editor *e, event ev)
             {
                 if(e->current_page_tab->current_text_selection)
                 {
-                    printf("end:%f,%f\n",e->current_page_tab->text_selection_end.x,e->current_page_tab->text_selection_end.y);
-                    printf("origin:%f,%f\n",e->current_page_tab->text_selection_origin.x,e->current_page_tab->text_selection_origin.y);
-                    
-                    vec2 begin=e->current_page_tab->text_selection_origin;
-                    vec2 end=e->current_page_tab->text_selection_end;
-                    vec2 temp;
-                    if(begin.y>end.y){
-                        temp=end;
-                        end=begin;
-                        begin=temp;
-                    }
-                    else if(begin.x>end.x){
-                        temp=end;
-                        end=begin;
-                        begin=temp;
-                    }
-                    end.x--;
-                    if(end.x<0)end.x=0;
-                    set_clipboard_text(editor_get_text(e,begin,end));
+                    copy_selection(e);
                 }
             }
             if(ev.type==KEY_Z)
             {
-                editor_do_action(e,true);
+                if(get_mod_state() & KEY_MOD_SHIFT){
+                    editor_do_action(e,false);
+                }
+                else{
+                    editor_do_action(e,true);
+                }
             }
             if(ev.type==KEY_Y)
             {
@@ -1302,9 +1313,7 @@ s32 editor_handle_keys(editor *e, event ev)
             {
                 if(e->current_page_tab->current_text_selection)
                 {   
-                    vec2 newend=e->current_page_tab->text_selection_end;
-                    newend.x--;
-                    set_clipboard_text(editor_get_text(e,e->current_page_tab->text_selection_origin,newend));
+                    copy_selection(e);
                     d_delete_selection
                 }
             }
@@ -1546,16 +1555,62 @@ s32 editor_handle_keys(editor *e, event ev)
                 else if(ev.type==KEY_TAB && !(get_mod_state() & KEY_MOD_ALT) && !(get_mod_state() & KEY_MOD_GUI))/*last two conditions are to ensure that this tab event wasnt caused by tabbing into the window*/
                 {
                     
-                    d_shift_check
                     if(e->current_page_tab->current_text_selection)
                     {
-                        //if you want to keep the text selected, will have to create a new text selection
-                        //basically just increase all values by 4 or whatever
+                        vec2 begin=e->current_page_tab->text_selection_origin;
+                        vec2 end=e->current_page_tab->text_selection_end;
+                        svil(&begin,&end);
+                     
+                        if(get_mod_state() & KEY_MOD_SHIFT){
+                            /*unindent selection*/
+                            for(int i=begin.y; i<=end.y; i++){
+                                char *curline=editor_get_line(e,i);
+                                int spaces=0;
+                                for(int x=0; curline[x]; x++){
+                                    if(curline[x]!=' '){
+                                        break;
+                                    }
+                                    spaces++;
+                                }
+                                if(spaces>num_spaces_to_insert_on_tab){
+                                    spaces=num_spaces_to_insert_on_tab;
+                                }
 
-                        //@TODO
+                                editor_set_line(e,i,alloc_str_slice(curline,spaces,strlen(curline)-1));
+                                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
+                                    e->current_page_tab->lines_size,i,i,e->current_page_tab->ext);
+                                if(i==e->current_page_tab->text_selection_origin.y){
+                                    e->current_page_tab->text_selection_origin.x-=spaces;
+                                }   
+                                if(i==e->current_page_tab->cursor_y){
+                                    editor_set_cursor_position(e,e->current_page_tab->cursor_x - spaces, e->current_page_tab->cursor_y);
+                                }
+                            }
+                        }
+                        else{
+                            /*indent selection*/
+                     
+                            for(int i=begin.y; i<=end.y; i++){
+                                char *curline=editor_get_line(e,i);
+                                char *spacestr=malloc(num_spaces_to_insert_on_tab+1);
+                                int j;
+                                for(j=0; j<num_spaces_to_insert_on_tab; j++){
+                                    spacestr[j]=' ';
+                                }
+                                spacestr[j]=0;
+
+                                editor_set_line(e,i,str_cat(spacestr,curline));
+                                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
+                                    e->current_page_tab->lines_size,i,i,e->current_page_tab->ext);
+                                free(spacestr);
+                            }
+                            e->current_page_tab->text_selection_origin.x+=num_spaces_to_insert_on_tab;
+                            editor_set_cursor_position(e,e->current_page_tab->cursor_x + num_spaces_to_insert_on_tab, e->current_page_tab->cursor_y);
+                        }
+                        /*trigger rerender of text selection*/
+                        editor_set_cursor_position(e,e->current_page_tab->cursor_x,e->current_page_tab->cursor_y);
                     }
-                    else
-                    {
+                    else{
                         char *str=strcpy(malloc(5),"    ");
                         editor_add_text(e, str,true);
                     }
@@ -1921,7 +1976,7 @@ char *editor_get_text(editor *focused_editor,vec2 begin, vec2 end)
     {
         char *curline=editor_get_line(focused_editor,y);
         u32 strlen_curline=strlen(curline);
-
+        
         if(begin.y==end.y)
         {
             retval=alloc_str_slice(curline,begin.x,end.x);
@@ -1936,9 +1991,11 @@ char *editor_get_text(editor *focused_editor,vec2 begin, vec2 end)
             temp=retval;
             retval=str_cat(retval,"\n");
             free(temp);
-            temp=retval;
-            retval=str_cat(retval,alloc_str_slice(curline,0,end.x));            
-            free(temp);
+            if(end.x>=0){
+                temp=retval;
+                retval=str_cat(retval,alloc_str_slice(curline,0,end.x));            
+                free(temp);
+            }
         }
         else
         {

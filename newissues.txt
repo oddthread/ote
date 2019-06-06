@@ -1,6 +1,5 @@
-undo/redo breaks (after undoing, redo will continue to undo)
-
 cut and paste (and copy) bug where it copies extra char at the end
 	this is just totally broken. off by one issue with text selection that needs to be fixed/rewritten
 
 text selection tabbing and untabbing, untabbing on single line 
+	cursor position should move as well, and text selection needs to move
