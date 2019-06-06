@@ -12,29 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*@todo for editor
-    clip text_selection and cursor
-
-    cut filename text, highlight on selection,
-  
-    when opening a tab save backup of file to res/backup directory (remove slashes to use as unique filename)
-    
-    manage textures properly (dont recreate...)
-
-    for find and replace:
-    can spawn a top-borderless(OS border) EDITOR small window with modified handle_event with a red outline or something where typing the name searches in its associated real editor
-    and hitting enter navigates to the next instance
-    hitting escape closes it
-    
-    for go to line:
-    same as previous except hitting enter just navigates to the line in the associated real editor and closes the box and it does nothing while typing.
-
-    a lot of the syntax highlighting stuff actually requires some parsing so prolly just wait till the parser is done
-        yay greentext
-
-    should lock files while open or no?
-*/
-
 texture *ctor_texture_file(window *w, char const *path){
     surface *s=ctor_surface_file(path);
     texture *t=ctor_texture(w,s);
@@ -1379,36 +1356,27 @@ s32 editor_handle_keys(editor *e, event ev)
                 char *indent_str=strcpy(malloc(2),"\n");
                 if(AUTO_INDENT)
                 {
-                    bool text_on_line=false;
                     s32 indent_str_size=2;
                     u32 i;
                     
-                    s32 x=0;
+                    s32 x=e->current_page_tab->cursor_x;
                     
                     char *editor_line=editor_get_line(e,e->current_page_tab->cursor_y);
                     
-                    if(e->current_page_tab->cursor_y>=0)
-                    {
-                        for(int i=e->current_page_tab->cursor_x; editor_line[i]; i++){
-                            if(editor_line[i]!=' '){
-                                printf("found text on line: %c\n",editor_line[i]);
-                                text_on_line=true;
-                                break;   
+                    for(int i=0; editor_line[i]; i++){
+                        if(editor_line[i]!=' '){
+                            /*subtract difference between it and cursor position, 
+                            so that it stays at the same indentation level (even if the string it is pushing to the next line (after the cursor) contains spaces!)
+                            */
+                            if(i>x){
+                                x=i-(i-e->current_page_tab->cursor_x);   
                             }
-                        }
-                        x=indentation_level_spaces(editor_line);
-                    }
-                    
-                    if(text_on_line){
-                        int text_indent=0;
-                        for(int i=0; editor_line[i]; i++){
-                            if(editor_line[i]!=' '){
-                                break;
-                            }        
-                            text_indent++;
-                        }                
-                        x=text_indent;
-                    }
+                            else{
+                                x=i;
+                            }
+                            break;
+                        }        
+                    }                
                 
                     for(i=0;i<x;i++)
                     {                            
