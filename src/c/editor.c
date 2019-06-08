@@ -1430,7 +1430,7 @@ s32 editor_handle_keys(editor *e, event ev)
                     
                 }
             }
-            else if(ev.type >=KEY_SPACE && ev.type <= KEY_Z)
+            else if(ev.type >= KEY_SPACE && ev.type <= KEY_Z)
             {
                 if(e->current_page_tab->current_text_selection)
                 {
@@ -1554,66 +1554,8 @@ s32 editor_handle_keys(editor *e, event ev)
                 }             
                 else if(ev.type==KEY_TAB && !(get_mod_state() & KEY_MOD_ALT) && !(get_mod_state() & KEY_MOD_GUI))/*last two conditions are to ensure that this tab event wasnt caused by tabbing into the window*/
                 {
-                    
-                    if(e->current_page_tab->current_text_selection)
-                    {
-                        vec2 begin=e->current_page_tab->text_selection_origin;
-                        vec2 end=e->current_page_tab->text_selection_end;
-                        svil(&begin,&end);
-                     
-                        if(get_mod_state() & KEY_MOD_SHIFT){
-                            /*unindent selection*/
-                            for(int i=begin.y; i<=end.y; i++){
-                                char *curline=editor_get_line(e,i);
-                                int spaces=0;
-                                for(int x=0; curline[x]; x++){
-                                    if(curline[x]!=' '){
-                                        break;
-                                    }
-                                    spaces++;
-                                }
-                                if(spaces>num_spaces_to_insert_on_tab){
-                                    spaces=num_spaces_to_insert_on_tab;
-                                }
-
-                                editor_set_line(e,i,alloc_str_slice(curline,spaces,strlen(curline)-1));
-                                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
-                                    e->current_page_tab->lines_size,i,i,e->current_page_tab->ext);
-                                if(i==e->current_page_tab->text_selection_origin.y){
-                                    e->current_page_tab->text_selection_origin.x-=spaces;
-                                }   
-                                if(i==e->current_page_tab->cursor_y){
-                                    editor_set_cursor_position(e,e->current_page_tab->cursor_x - spaces, e->current_page_tab->cursor_y);
-                                }
-                            }
-                        }
-                        else{
-                            /*indent selection*/
-                     
-                            for(int i=begin.y; i<=end.y; i++){
-                                char *curline=editor_get_line(e,i);
-                                char *spacestr=malloc(num_spaces_to_insert_on_tab+1);
-                                int j;
-                                for(j=0; j<num_spaces_to_insert_on_tab; j++){
-                                    spacestr[j]=' ';
-                                }
-                                spacestr[j]=0;
-
-                                editor_set_line(e,i,str_cat(spacestr,curline));
-                                text_block_renderer_set_text(e->current_page_tab->tbr,e->current_page_tab->lines,
-                                    e->current_page_tab->lines_size,i,i,e->current_page_tab->ext);
-                                free(spacestr);
-                            }
-                            e->current_page_tab->text_selection_origin.x+=num_spaces_to_insert_on_tab;
-                            editor_set_cursor_position(e,e->current_page_tab->cursor_x + num_spaces_to_insert_on_tab, e->current_page_tab->cursor_y);
-                        }
-                        /*trigger rerender of text selection*/
-                        editor_set_cursor_position(e,e->current_page_tab->cursor_x,e->current_page_tab->cursor_y);
-                    }
-                    else{
-                        char *str=strcpy(malloc(5),"    ");
-                        editor_add_text(e, str,true);
-                    }
+                    char *str=strcpy(malloc(5),"    ");
+                    editor_add_text(e, str,true);
                 }
                 else if(ev.type==KEY_LEFT)
                 {
@@ -2055,7 +1997,13 @@ void editor_do_action(editor *e, bool un)
     sprintf(ote_log_buffer,"do_action - (action_list_index,action_list_size): %d,%d\n",e->current_page_tab->action_list_index,e->current_page_tab->action_list_size);
     printf(ote_log_buffer);
     action *a=NULL;
-    
+
+    if(e->current_page_tab->current_text_selection){
+        dtor_text_selection(e);
+        e->current_page_tab->current_text_selection=NULL;
+        e->current_page_tab->start_selection_mouse=false;
+    }
+
     if(un)
     {
         if(!e->current_page_tab->action_list_size || e->current_page_tab->action_list_index < 0)
