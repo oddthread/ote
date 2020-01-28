@@ -75,12 +75,7 @@ s32 delegate_event_window(global_state *gs)
         }         
 
         if(gs->e.type==WINDOW_CLOSE)
-        {
-            if(gs->editors_size==0)
-            {
-                return EXIT_CODE_ALL_WINDOWS_CLOSED;
-            }
-            
+        {   
             u32 i;
             for(i=0; i<gs->editors_size; i++)
             {
@@ -97,6 +92,12 @@ s32 delegate_event_window(global_state *gs)
                     dtor_editor(editor_to_free);
                     break;
                 }
+            }
+            
+            printf("checking if should exit, windows sz: %d\n",gs->editors_size);
+            if(gs->editors_size==0)
+            {
+                return EXIT_CODE_ALL_WINDOWS_CLOSED;
             }
         }       
         if(gs->e.type == FOCUS_GAINED)
@@ -120,8 +121,9 @@ s32 delegate_event_window(global_state *gs)
         }  
         if(gs->e.type==DROP_FILE)
         {
+            printf("got file drop: %s\n",gs->e.str);
+            //do not free e.str
             ctor_page_tab(gs->focused_editor,gs->e.str, gs->config);
-            system_free(gs->e.str);
         } 
     }
     return 0;
